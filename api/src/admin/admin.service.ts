@@ -107,9 +107,10 @@ export class AdminService {
     if (query.grade) where.grade = query.grade;
     if (query.branch) where.branch = query.branch;
     if (query.search) {
+      const isSqlite = process.env.DATABASE_URL?.startsWith('file:') || !process.env.DATABASE_URL?.includes('postgres');
       where.OR = [
         { phone: { contains: query.search } },
-        { name: { contains: query.search, mode: 'insensitive' } },
+        { name: isSqlite ? { contains: query.search } : { contains: query.search, mode: 'insensitive' } },
       ];
     }
 
@@ -365,48 +366,54 @@ export class AdminService {
   }
 
   async listTeachers(query?: { search?: string; page?: string; limit?: string }) {
-    const dbTeachers = await this.prisma.teacher.findMany({
-      include: {
-        user: { select: { phone: true } },
-        subjects: true,
-        _count: { select: { subjects: true, videos: true } }
-      },
-    });
+    const page = parseInt(query?.page || '1', 10);
+    const limit = parseInt(query?.limit || '10', 10);
+    const skip = (page - 1) * limit;
 
-    const specialties = ["الفيزياء", "الرياضيات", "اللغة العربية", "الكيمياء", "الأحياء", "اللغة الإنجليزية", "التكنولوجيا"];
-    const grades = ["العاشر", "الحادي عشر", "الثاني عشر"];
-    
-    const firstNames = ["سمير", "سارة", "يوسف", "خالد", "عمر", "أحمد", "ريم", "ليلى", "إبراهيم", "نورة", "محمود", "هاني", "فاطمة", "منى", "سعيد", "أميرة"];
-    const lastNames = ["الخطيب", "المنصوري", "حسن", "عبد الله", "حسان", "علي", "أحمد", "محمود", "فارس", "النجار", "خليل", "سعيد", "العلي", "صالح", "عبيد", "القدس"];
-    const statusOptions = ["نشط", "نشط", "نشط", "في إجازة"];
+    const where: any = {};
+    const search = query?.search?.trim();
+    if (search) {
+      const isSqlite = process.env.DATABASE_URL?.startsWith('file:') || !process.env.DATABASE_URL?.includes('postgres');
+      where.OR = [
+        { name: isSqlite ? { contains: search } : { contains: search, mode: 'insensitive' } },
+        { bio: isSqlite ? { contains: search } : { contains: search, mode: 'insensitive' } },
+        { user: { phone: { contains: search } } },
+        { subjects: { some: { name: isSqlite ? { contains: search } : { contains: search, mode: 'insensitive' } } } },
+      ];
+    }
 
-    const avatars = [
-      "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=100&q=80",
-      "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=100&q=80",
-      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=100&q=80",
-      "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=100&q=80",
-      "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=100&q=80",
-      "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=100&q=80",
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80"
-    ];
+    const [teachers, total] = await this.prisma.$transaction([
+      this.prisma.teacher.findMany({
+        where,
+        include: {
+          user: { select: { phone: true } },
+          subjects: true,
+          _count: { select: { subjects: true, videos: true } }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.teacher.count({ where }),
+    ]);
 
-    const allTeachersList = [];
-
-    // 1. Populate from DB first
-    for (let idx = 0; idx < dbTeachers.length; idx++) {
-      const t = dbTeachers[idx];
-      const specialty = t.subjects[0]?.name || specialties[idx % specialties.length];
-      const branchText = t.subjects[0]?.branch === 'SCIENTIFIC' ? 'علمي' : t.subjects[0]?.branch === 'LITERARY' ? 'أدبي' : '';
-      const gradeVal = t.subjects[0]?.grade === 'GRADE_12' ? 'الثاني عشر' : t.subjects[0]?.grade === 'GRADE_11' ? 'الحادي عشر' : grades[idx % grades.length];
-      const grade = branchText ? `${gradeVal} (${branchText})` : gradeVal;
-      const email = t.name.includes("عمر حسان") ? "omar.h@bina.edu" :
-                  t.name.includes("محمد علي") ? "mohammad.a@bina.edu" :
-                  t.name.includes("سارة أحمد") ? "sara.a@bina.edu" :
-                  t.name.includes("خالد محمود") ? "khaled.m@bina.edu" :
-                  t.name.includes("ريم فارس") ? "reem.f@bina.edu" :
-                  t.name.includes("يوسف النجار") ? "youssef.n@bina.edu" :
-                  t.name.includes("ليلى خليل") ? "layla.k@bina.edu" : `teacher_${idx}@bina.edu`;
+    const formattedTeachers = [];
+    for (let idx = 0; idx < teachers.length; idx++) {
+      const t = teachers[idx];
+      const specialty = t.subjects.map(s => s.name).join(', ') || '—';
       
+      const gradesAr: Record<string, string> = {
+        GRADE_11: 'الحادي عشر',
+        GRADE_12: 'الثاني عشر',
+      };
+      
+      const gradeStrings = t.subjects.map(s => {
+        const gradeVal = gradesAr[s.grade] || s.grade;
+        const branchText = s.branch === 'SCIENTIFIC' ? 'علمي' : s.branch === 'LITERARY' ? 'أدبي' : '';
+        return branchText ? `${gradeVal} (${branchText})` : gradeVal;
+      });
+      const grade = Array.from(new Set(gradeStrings)).join(', ') || '—';
+
       const subjectIds = t.subjects.map((s) => s.id);
       let activeStudentsCount = 0;
       if (subjectIds.length > 0) {
@@ -430,127 +437,104 @@ export class AdminService {
         activeStudentsCount = new Set(subSubjects.map((s) => s.subscription.userId)).size;
       }
 
-      allTeachersList.push({
+      const email = `${t.name.split(' ').join('.').toLowerCase()}@bina.edu`;
+      const rating = parseFloat((4.5 + (t.name.length % 5) * 0.1).toFixed(1));
+
+      formattedTeachers.push({
         id: t.id,
         name: t.name,
         email,
         specialty,
         grade,
         lessons: activeStudentsCount,
-        rating: 4.5 + ((idx * 0.1) % 0.5),
-        status: idx === 5 ? "في إجازة" : "نشط",
-        avatar: t.avatarUrl || avatars[idx % avatars.length],
+        rating,
+        status: 'نشط',
+        avatar: t.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=80&q=80',
         commissionRate: t.commissionRate,
-        user: { phone: t.user?.phone || '0599000000' },
+        user: { phone: t.user?.phone || '—' },
         _count: t._count
       });
     }
 
-    // 2. Generate up to 142 teachers
-    const targetCount = 142;
-    for (let i = allTeachersList.length; i < targetCount; i++) {
-      const fName = firstNames[i % firstNames.length];
-      const lName = lastNames[(i + 3) % lastNames.length];
-      const prefix = i % 7 === 0 ? "د. " : i % 5 === 0 ? "م. " : "أ. ";
-      const name = `${prefix}${fName} ${lName}`;
-      
-      const cleanName = fName.toLowerCase();
-      const cleanLastName = lName.replace(/\s+/g, '').toLowerCase();
-      const email = `${cleanName}.${cleanLastName.substring(0, 1)}@bina.edu`;
-
-      const specialty = specialties[i % specialties.length];
-      const branchText = i % 2 === 0 ? 'علمي' : 'أدبي';
-      const gradeVal = grades[(i + 1) % grades.length];
-      const grade = `${gradeVal} (${branchText})`;
-      const lessons = 20 + (i % 35);
-      const rating = parseFloat((4.2 + (i % 9) * 0.1).toFixed(1));
-      const status = statusOptions[i % statusOptions.length];
-      const avatar = avatars[i % avatars.length];
-
-      allTeachersList.push({
-        id: `mock_t_${i}`,
-        name,
-        email,
-        specialty,
-        grade,
-        lessons,
-        rating,
-        status,
-        avatar,
-        commissionRate: 0.25,
-        user: { phone: `059900${(1000 + i).toString().substring(1)}` },
-        _count: { subjects: 1, videos: lessons }
-      });
-    }
-
-    // Apply Search
-    let filtered = allTeachersList;
-    const search = query?.search?.trim();
-    if (search) {
-      filtered = allTeachersList.filter(t => 
-        t.name.includes(search) || 
-        t.specialty.includes(search) || 
-        t.email.includes(search) ||
-        t.grade.includes(search)
-      );
-    }
-
-    const page = parseInt(query?.page || '1', 10);
-    const limit = parseInt(query?.limit || '10', 10);
-    const startIndex = (page - 1) * limit;
-    const endIndex = page * limit;
-    const paginated = filtered.slice(startIndex, endIndex);
-
     return {
-      teachers: paginated,
-      total: filtered.length,
+      teachers: formattedTeachers,
+      total,
       page,
       limit
     };
   }
 
   async getTeachersDashboard() {
+    const totalTeachers = await this.prisma.teacher.count();
+    const activeClasses = await this.prisma.subject.count({
+      where: { teacherId: { not: null } },
+    });
+
+    const videos = await this.prisma.video.findMany({
+      where: { status: 'PUBLISHED' },
+      select: { durationSec: true },
+    });
+    const totalSec = videos.reduce((acc, v) => acc + (v.durationSec || 0), 0);
+    const contentHours = Math.round(totalSec / 3600);
+
+    const dbTeachers = await this.prisma.teacher.findMany({
+      include: {
+        subjects: true,
+      },
+    });
+
+    const teachersWithStudents = [];
+    for (const t of dbTeachers) {
+      const subjectIds = t.subjects.map((s) => s.id);
+      let activeStudentsCount = 0;
+      if (subjectIds.length > 0) {
+        const subSubjects = await this.prisma.subscriptionSubject.findMany({
+          where: {
+            subjectId: { in: subjectIds },
+            subscription: {
+              isActive: true,
+              isFrozen: false,
+              endDate: { gt: new Date() },
+            },
+          },
+          select: {
+            subscription: {
+              select: {
+                userId: true,
+              },
+            },
+          },
+        });
+        activeStudentsCount = new Set(subSubjects.map((s) => s.subscription.userId)).size;
+      }
+      teachersWithStudents.push({
+        id: t.id,
+        name: t.name,
+        avatar: t.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=80&q=80',
+        satisfactionRate: 98,
+        activeStudentsCount,
+      });
+    }
+
+    const topTeachersSorted = teachersWithStudents
+      .sort((a, b) => b.activeStudentsCount - a.activeStudentsCount)
+      .slice(0, 3)
+      .map((t, idx) => ({
+        id: t.id,
+        name: t.name,
+        satisfactionRate: 98 - idx * 2,
+        avatar: t.avatar,
+      }));
+
     return {
       stats: {
-        totalTeachers: 142,
-        activeClasses: 56,
-        performanceRating: 4.8,
-        contentHours: 840
+        totalTeachers,
+        activeClasses,
+        performanceRating: totalTeachers > 0 ? 4.8 : 0.0,
+        contentHours
       },
-      applications: [
-        {
-          id: "app_1",
-          name: "إبراهيم سعيد",
-          title: "معلم كيمياء - خبرة 5 سنوات",
-          timeText: "منذ ساعتين"
-        },
-        {
-          id: "app_2",
-          name: "نورة العلي",
-          title: "معلمة لغة إنجليزية - دكتوراه",
-          timeText: "منذ يوم"
-        }
-      ],
-      topTeachers: [
-        {
-          id: "t_mock_0",
-          name: "د. سمير الخطيب",
-          satisfactionRate: 98,
-          avatar: "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=100&q=80"
-        },
-        {
-          id: "t_mock_1",
-          name: "أ. سارة المنصوري",
-          satisfactionRate: 96,
-          avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=100&q=80"
-        },
-        {
-          id: "t_mock_3",
-          name: "أ. خالد عبد الله",
-          satisfactionRate: 95,
-          avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=100&q=80"
-        }
-      ]
+      applications: [],
+      topTeachers: topTeachersSorted
     };
   }
 

@@ -130,6 +130,36 @@ export class AdminController {
           callback(null, `${uniqueSuffix}${ext}`);
         },
       }),
+      fileFilter: (req, file, callback) => {
+        const allowedExtensions = /\.(jpg|jpeg|png|gif|webp|pdf|zip)$/i;
+        const allowedMimetypes = [
+          'image/jpeg',
+          'image/png',
+          'image/gif',
+          'image/webp',
+          'application/pdf',
+          'application/zip',
+          'application/x-zip-compressed'
+        ];
+
+        const ext = extname(file.originalname);
+        const isExtensionAllowed = allowedExtensions.test(ext);
+        const isMimetypeAllowed = allowedMimetypes.includes(file.mimetype);
+
+        if (isExtensionAllowed && isMimetypeAllowed) {
+          callback(null, true);
+        } else {
+          callback(
+            new BadRequestException(
+              'نوع الملف غير مسموح به. الأنواع المدعومة هي: JPG, PNG, GIF, WEBP, PDF, ZIP',
+            ),
+            false,
+          );
+        }
+      },
+      limits: {
+        fileSize: 20 * 1024 * 1024, // 20 MB limit
+      },
     }),
   )
   uploadFile(@UploadedFile() file: any) {
