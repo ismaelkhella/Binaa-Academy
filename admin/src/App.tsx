@@ -5,6 +5,9 @@ import DashboardPage from './pages/DashboardPage';
 import StudentsPage from './pages/StudentsPage';
 import VideosPage from './pages/VideosPage';
 import SubscriptionsPage from './pages/SubscriptionsPage';
+import TeachersPage from './pages/TeachersPage';
+import SettingsPage from './pages/SettingsPage';
+import NotificationsPage from './pages/NotificationsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('admin_token');
@@ -28,6 +31,9 @@ export default function App() {
         <Route path="students" element={<StudentsPage />} />
         <Route path="videos" element={<VideosPage />} />
         <Route path="subscriptions" element={<SubscriptionsPage />} />
+        <Route path="teachers" element={<TeachersPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
       </Route>
     </Routes>
   );

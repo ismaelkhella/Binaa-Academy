@@ -9,6 +9,13 @@ import { SubjectsModule } from './subjects/subjects.module';
 import { VideosModule } from './videos/videos.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { AdminModule } from './admin/admin.module';
+import { OpenapiModule } from './openapi/openapi.module';
+import { AppController } from './app.controller';
+import { GoalsModule } from './goals/goals.module';
+import { PerformanceModule } from './performance/performance.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { CartModule } from './cart/cart.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -21,7 +28,14 @@ import { AdminModule } from './admin/admin.module';
     VideosModule,
     SubscriptionsModule,
     AdminModule,
+    OpenapiModule,
+    GoalsModule,
+    PerformanceModule,
+    DashboardModule,
+    CartModule,
+    ChatModule,
   ],
+  controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

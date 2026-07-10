@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsEnum, IsNumber, IsBoolean, Min } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsNumber, IsBoolean, Min, IsArray } from 'class-validator';
 import { Grade, Branch, PlanType, VideoStatus } from '@prisma/client';
 
 export class ListStudentsQuery {
@@ -54,6 +54,11 @@ export class GrantSubscriptionDto {
   @IsNumber()
   @Min(1)
   durationDays?: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  subjectIds?: string[];
 }
 
 export class CreateVideoDto {
@@ -90,6 +95,14 @@ export class CreateVideoDto {
   @IsOptional()
   @IsString()
   teacherId?: string;
+
+  @IsOptional()
+  @IsString()
+  pdfUrl?: string;
+
+  @IsOptional()
+  @IsArray()
+  questions?: { text: string; options: string[]; answer: string }[];
 }
 
 export class UpdatePlanDto {
@@ -109,3 +122,39 @@ export class UpdatePlanDto {
   @IsBoolean()
   isActive?: boolean;
 }
+
+export class UpdateSubjectDto {
+  @IsOptional()
+  @IsNumber()
+  priceIls?: number;
+
+  @IsOptional()
+  @IsString()
+  teacherId?: string;
+}
+
+export class CreateTeacherDto {
+  @IsString()
+  name!: string;
+
+  @IsString()
+  phone!: string;
+
+  @IsOptional()
+  @IsString()
+  bio?: string;
+
+  @IsOptional()
+  @IsString()
+  avatarUrl?: string;
+
+  @IsOptional()
+  @IsNumber()
+  commissionRate?: number;
+
+  @IsOptional()
+  @IsString()
+  subjectId?: string;
+}
+
+

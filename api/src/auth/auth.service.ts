@@ -3,7 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
-import { RequestOtpDto, VerifyOtpDto, SetupProfileDto, AdminLoginDto } from './dto/auth.dto';
+import { RegisterDto, LoginDto, SetupProfileDto, AdminLoginDto } from './dto/auth.dto';
 import { Grade, Branch, PlanType } from '@prisma/client';
 
 @Injectable()
@@ -14,53 +14,64 @@ export class AuthService {
     private config: ConfigService,
   ) {}
 
-  async requestOtp(dto: RequestOtpDto) {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + (Number(this.config.get('OTP_EXPIRES_MINUTES')) || 5) * 60 * 1000);
+  async register(dto: RegisterDto) {
+    const existing = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
+    if (existing) {
+      throw new BadRequestException('رقم الهاتف مسجل بالفعل');
+    }
 
-    await this.prisma.otpCode.create({
-      data: { phone: dto.phone, code, expiresAt },
-    });
+    const passwordHash = await bcrypt.hash(dto.password, 10);
 
-    // In production: send via Twilio/Vonage SMS
-    return {
-      message: 'تم إرسال رمز التحقق',
-      expiresInMinutes: 5,
-      ...(process.env.NODE_ENV !== 'production' && { devCode: code }),
-    };
-  }
-
-  async verifyOtp(dto: VerifyOtpDto) {
-    const otp = await this.prisma.otpCode.findFirst({
-      where: {
+    const user = await this.prisma.user.create({
+      data: {
         phone: dto.phone,
-        code: dto.code,
-        used: false,
-        expiresAt: { gt: new Date() },
+        passwordHash,
+        name: dto.name,
+        grade: dto.grade,
+        branch: dto.branch,
+        parentPhone: dto.parentPhone,
       },
-      orderBy: { createdAt: 'desc' },
     });
 
-    if (!otp) {
-      throw new UnauthorizedException('رمز التحقق غير صحيح أو منتهي الصلاحية');
+    const trialPlan = await this.prisma.subscriptionPlan.findUnique({
+      where: { type: PlanType.TRIAL },
+    });
+    if (trialPlan) {
+      await this.prisma.subscription.create({
+        data: {
+          userId: user.id,
+          planId: trialPlan.id,
+          endDate: new Date(Date.now() + trialPlan.durationDays * 24 * 60 * 60 * 1000),
+        },
+      });
     }
 
-    await this.prisma.otpCode.update({ where: { id: otp.id }, data: { used: true } });
-
-    let user = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
-    const isNewUser = !user;
-
-    if (!user) {
-      user = await this.prisma.user.create({ data: { phone: dto.phone } });
-    }
-
-    const needsProfile = !user.grade || !user.branch;
-    const token = this.signStudentToken(user.id, user.phone);
+    const token = this.signStudentToken(user.id, user.phone, user.role);
 
     return {
       token,
-      isNewUser,
-      needsProfile,
+      user: this.sanitizeUser(user),
+    };
+  }
+
+  async login(dto: LoginDto) {
+    const user = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
+    if (!user || user.role !== 'STUDENT') {
+      throw new UnauthorizedException('رقم الهاتف أو كلمة المرور غير صحيحة');
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('هذا الحساب معطل. يرجى مراجعة الإدارة.');
+    }
+
+    if (!user.passwordHash || !(await bcrypt.compare(dto.password, user.passwordHash))) {
+      throw new UnauthorizedException('رقم الهاتف أو كلمة المرور غير صحيحة');
+    }
+
+    const token = this.signStudentToken(user.id, user.phone, user.role);
+
+    return {
+      token,
       user: this.sanitizeUser(user),
     };
   }
@@ -107,9 +118,9 @@ export class AuthService {
     return { token, admin: { id: admin.id, email: admin.email, name: admin.name } };
   }
 
-  private signStudentToken(userId: string, phone: string) {
+  private signStudentToken(userId: string, phone: string, role: string) {
     return this.jwt.sign(
-      { sub: userId, phone, role: 'STUDENT' },
+      { sub: userId, phone, role },
       { secret: this.config.get('JWT_SECRET'), expiresIn: this.config.get('JWT_EXPIRES_IN') || '30d' },
     );
   }

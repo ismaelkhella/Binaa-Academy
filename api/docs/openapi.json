@@ -1,0 +1,2477 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Bina Academy API",
+    "description": "## نظرة عامة | Overview\n\nمجموعة الـ APIs الخاصة بمنصة **Bina Academy** لطلبة التوجيهي (الفرع العلمي والأدبي - الصف 11 و 12).\n\nAPI collection for **Bina Academy** tutoring platform (Tawjihi students - grades 11/12, scientific/literary branches).\n\n---\n\n### خصائص عامة | General Properties\n\n- جميع الردود JSON (`Content-Type: application/json`)\n- جميع أرقام الهواتف بالصيغة الفلسطينية `^05\\d{8}$` (مثال: `0591234567`)\n- التواريخ بصيغة ISO 8601\n- المصادقة بـ JWT Bearer (توكينات الطلاب 30 يوم، توكينات الإدمن 7 أيام)\n- الحد العام للطلبات: 100 طلب/دقيقة لكل IP (حسب `@nestjs/throttler`)\n\n### تدفّق العمل الموصى به | Recommended Mobile Flows\n\n1. **تسجيل طالب جديد**: POST `/auth/register` (الهاتف، كلمة المرور، الاسم الكامل، الصف، الفرع) → تصفح المواد مباشرة.\n2. **دخول طالب مسجل**: POST `/auth/login` (الهاتف وكلمة المرور) → تصفح المواد.\n3. **مشاهدة فيديو**: GET `/subjects/:id/videos` → GET `/videos/:id/stream` → POST `/videos/:id/mark-viewed`\n4. **إدمن**: POST `/auth/admin/login` → استعمل الـ token في كل endpoints الـ admin\n",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Bina Academy Backend Team"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/api",
+      "description": "Local development"
+    },
+    {
+      "url": "http://10.0.2.2:3000/api",
+      "description": "Android emulator (loopback to host)"
+    },
+    {
+      "url": "https://api.bina-academy.ps/api",
+      "description": "Production (placeholder URL — confirm with backend team)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "مصادقة الطالب برقم الهاتف وكلمة المرور + تسجيل دخول الإدمن | Student password auth + admin login"
+    },
+    {
+      "name": "Users",
+      "description": "ملف الطالب ورقم هاتف ولي الأمر | Student profile and parent phone"
+    },
+    {
+      "name": "Subjects",
+      "description": "قائمة المواد وفيديوهاتها مع حالة القفل | Subjects and their videos with lock state"
+    },
+    {
+      "name": "Videos",
+      "description": "بث الفيديو، تتبّع المشاهدات، وتوكين التنزيل | Video streaming, view tracking, and download tokens"
+    },
+    {
+      "name": "Subscriptions",
+      "description": "خطط الاشتراك العامة واشتراك الطالب الحالي | Public plans and current subscription"
+    },
+    {
+      "name": "Admin",
+      "description": "لوحة الإدارة: الطلاب، الفيديو، الاشتراكات، المعلمون (تتطلب توكين ADMIN) | Admin endpoints (require ADMIN token)"
+    },
+    {
+      "name": "Cart",
+      "description": "سلة التسوق وإتمام الشراء للمواد | Student shopping cart and checkout"
+    }
+  ],
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "تسجيل طالب جديد",
+        "description": "يسجل طالب جديد في المنصة باستخدام رقم الجوال، الاسم، كلمة المرور، الصف، والفرع. يتم تلقائياً تفعيل باقة اشتراك تجريبية للوصول الأولي.\n\nRegisters a new Tawjihi student using phone, name, password, grade, and branch. Creates a TRIAL subscription automatically for early access.",
+        "operationId": "registerStudent",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RegisterDto" },
+              "examples": {
+                "valid": {
+                  "summary": "بيانات تسجيل طالب جديد",
+                  "value": {
+                    "phone": "0599222222",
+                    "password": "student_password",
+                    "name": "باسم سعيد",
+                    "grade": "GRADE_11",
+                    "branch": "SCIENTIFIC"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "تم تسجيل الحساب بنجاح ويحتوي على توكين JWT وبيانات الطالب",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthResponse" },
+                "example": {
+                  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                  "user": {
+                    "id": "cmrcd5l5z0000bgsuu0noi98n",
+                    "phone": "0599222222",
+                    "name": "باسم سعيد",
+                    "grade": "GRADE_11",
+                    "branch": "SCIENTIFIC",
+                    "parentPhone": null,
+                    "role": "STUDENT",
+                    "createdAt": "2026-07-08T17:40:23.015Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "تسجيل دخول طالب",
+        "description": "يسجل دخول الطالب باستخدام رقم الجوال وكلمة المرور المشفرة مسبقاً.\n\nAuthenticates a student using phone number and password.",
+        "operationId": "loginStudent",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginDto" },
+              "examples": {
+                "valid": {
+                  "summary": "تسجيل دخول بالرقم وكلمة المرور",
+                  "value": { "phone": "0599222222", "password": "student_password" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "دخول ناجح — يحتوي على توكين JWT للطالب",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthResponse" },
+                "example": {
+                  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                  "user": {
+                    "id": "cmrcd5l5z0000bgsuu0noi98n",
+                    "phone": "0599222222",
+                    "name": "باسم سعيد",
+                    "grade": "GRADE_11",
+                    "branch": "SCIENTIFIC",
+                    "parentPhone": null,
+                    "role": "STUDENT",
+                    "createdAt": "2026-07-08T17:40:23.015Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": {
+            "description": "رقم الهاتف أو كلمة المرور غير صحيحة",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "statusCode": 401,
+                  "message": "رقم الهاتف أو كلمة المرور غير صحيحة"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/setup-profile": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "إكمال ملف الطالب (الصف + الفرع)",
+        "description": "يضبط صف وفرع الطالب. إذا لم يكن لديه اشتراك فعّال، يتم إنشاء اشتراك **TRIAL** تلقائياً (إن وُجدت خطة TRIAL في DB). يتطلب توكين STUDENT.\n\nSets the student's grade and branch. If no active subscription exists, a TRIAL subscription is auto-created (if the TRIAL plan exists in DB). Requires STUDENT JWT.",
+        "operationId": "setupProfile",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetupProfileDto" },
+              "examples": {
+                "scientific": {
+                  "summary": "طالب علمي صف ثاني عشر",
+                  "value": { "grade": "GRADE_12", "branch": "SCIENTIFIC" }
+                },
+                "literary": {
+                  "summary": "طالب أدبي صف حادي عشر",
+                  "value": { "grade": "GRADE_11", "branch": "LITERARY" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "تم تحديث الملف وإنشاء اشتراك تجريبي (إن أمكن)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": { "$ref": "#/components/schemas/User" }
+                  }
+                },
+                "example": {
+                  "user": {
+                    "id": "clv123abc",
+                    "phone": "0591234567",
+                    "name": null,
+                    "grade": "GRADE_12",
+                    "branch": "SCIENTIFIC",
+                    "parentPhone": null,
+                    "role": "STUDENT",
+                    "createdAt": "2026-06-28T15:00:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/auth/admin/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "تسجيل دخول الإدمن",
+        "description": "يحقّق من بريد الإدمن وكلمة المرور ويعود بـ JWT ADMIN (صالح 7 أيام). **مختلف عن توكين الطالب**: يتطلب `ADMIN_JWT_SECRET` (أو `JWT_SECRET` كاحتياط).\n\nVerifies admin email and password, returns an ADMIN JWT (7-day expiry). **Different from student tokens**: uses `ADMIN_JWT_SECRET` (or `JWT_SECRET` as fallback).",
+        "operationId": "adminLogin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AdminLoginDto" },
+              "example": {
+                "email": "admin@bina-academy.ps",
+                "password": "CHANGE_ME"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "تسجيل دخول ناجح",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AdminLoginResponse" },
+                "example": {
+                  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                  "admin": {
+                    "id": "admin001",
+                    "email": "admin@bina-academy.ps",
+                    "name": "مدير النظام"
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": {
+            "description": "بيانات الدخول غير صحيحة",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "statusCode": 401,
+                  "message": "بيانات الدخول غير صحيحة"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "بيانات الطالب الحالي والاشتراك الفعّال",
+        "description": "يعود بمعلومات الطالب وتلخيص الاشتراك الفعّال (نوع الخطة، تاريخ الانتهاء، عدد الفيديوهات المتاحة لكل مادة). يتطلب توكين STUDENT.\n\nReturns the current student and their active subscription summary. Requires STUDENT JWT.",
+        "operationId": "getMe",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "بيانات الطالب",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MeResponse" },
+                "example": {
+                  "id": "clv123abc",
+                  "phone": "0591234567",
+                  "name": "أحمد محمود",
+                  "grade": "GRADE_12",
+                  "branch": "SCIENTIFIC",
+                  "parentPhone": "0599876543",
+                  "role": "STUDENT",
+                  "subscription": {
+                    "planType": "MONTHLY",
+                    "planName": "اشتراك شهري",
+                    "endDate": "2026-07-28T15:00:00.000Z",
+                    "isActive": true,
+                    "videosPerSubject": 10
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": {
+            "description": "المستخدم غير موجود (التوكن يشير لمستخدم محذوف)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "statusCode": 404,
+                  "message": "المستخدم غير موجود"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/parent-phone": {
+      "put": {
+        "tags": ["Users"],
+        "summary": "تحديث رقم هاتف ولي الأمر",
+        "description": "يضبط `parentPhone` على رقم فلسطيني صالح. يتطلب توكين STUDENT.",
+        "operationId": "updateParentPhone",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateParentPhoneDto" },
+              "example": { "parentPhone": "0599876543" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "تم التحديث",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "parentPhone": { "type": "string", "example": "0599876543" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/subjects": {
+      "get": {
+        "tags": ["Subjects"],
+        "summary": "قائمة المواد للطالب الحالي (حسب صفه وفرعه)",
+        "description": "يقرأ `grade` و `branch` من ملف الطالب، ثم يعيد المواد المطابقة فقط مع عدد الفيديوهات المنشورة واسم المعلم. إذا لم يكن قد أكمل الملف الشخصي بعد، يرد بـ 404.\n\nReads the student's `grade` and `branch` from profile and returns matching subjects with published video count and teacher name. Returns 404 if profile incomplete.",
+        "operationId": "listSubjects",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "قائمة المواد",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/SubjectListItem" }
+                },
+                "example": [
+                  {
+                    "id": "sub_math",
+                    "name": "الرياضيات",
+                    "grade": "GRADE_12",
+                    "branch": "SCIENTIFIC",
+                    "teacherName": "أ. خالد عمر",
+                    "videoCount": 24,
+                    "progressPercent": 75,
+                    "locked": true
+                  },
+                  {
+                    "id": "sub_phys",
+                    "name": "الفيزياء",
+                    "grade": "GRADE_12",
+                    "branch": "SCIENTIFIC",
+                    "teacherName": "أ. سامي حسن",
+                    "videoCount": 18,
+                    "progressPercent": 40,
+                    "locked": false
+                  }
+                ]
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": {
+            "description": "الطالب لم يكمل الملف الشخصي بعد (لا grade/branch)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "statusCode": 404,
+                  "message": "يرجى إكمال الملف الشخصي أولاً"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/subjects/my": {
+      "get": {
+        "tags": ["Subjects"],
+        "summary": "قائمة موادي المشترك بها الطالب (المكتبة) | Purchased Student Subjects",
+        "description": "يعود بالمواد التي اشترك بها الطالب واشتراكه فعال فيها حالياً. مفيد جداً لشاشة 'موادي' في التطبيق لزيادة سرعة الأداء وتقليل استهلاك البيانات.\n\nReturns subjects that the student has purchased (has an active paid subscription for).",
+        "operationId": "listPurchasedSubjects",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "قائمة المواد المشترك بها بنجاح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/SubjectListItem" }
+                },
+                "example": [
+                  {
+                    "id": "sub_phys",
+                    "name": "الفيزياء",
+                    "grade": "GRADE_12",
+                    "branch": "SCIENTIFIC",
+                    "teacherName": "أ. سامي حسن",
+                    "videoCount": 18,
+                    "progressPercent": 40,
+                    "locked": false
+                  }
+                ]
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/subjects/{id}/videos": {
+      "get": {
+        "tags": ["Subjects"],
+        "summary": "فيديوهات مادة معيّنة مع حالة القفل",
+        "description": "يعرض كل الفيديوهات **المنشورة** للمادة مرتّبة حسب (unitNumber, orderInUnit). كل فيديو يحمل `locked: boolean` — يعتمد على `quota = plan.videosPerSubject` و **الترتيب** (`locked = (index >= quota)`)، وليس على مشاهدات سابقة.\n\n> ⚠️ **قاعدة الحصة**: لو الخطة تسمح بـ 10 فيديوهات، فالأول 10 فيديوهات فقط مفتوحة والباقي `locked: true` — حتى لو لم تُشاهد بعد.\n\nLists PUBLISHED videos in display order (unitNumber, orderInUnit). Each video has `locked: boolean` based on quota (top N unlocked). Locking is determined by **position in the sorted list**, not view history.",
+        "operationId": "getSubjectVideos",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "معرّف المادة",
+            "schema": { "type": "string", "example": "sub_math" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "المادة وفيديوهاتها وحصتها",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SubjectVideosResponse" },
+                "example": {
+                  "subject": { "id": "sub_math", "name": "الرياضيات" },
+                  "quota": 10,
+                  "videos": [
+                    {
+                      "id": "vid_001",
+                      "title": "النهايات - مقدمة",
+                      "description": "تمهيد لمفهوم النهاية",
+                      "durationSec": 645,
+                      "unitNumber": 1,
+                      "orderInUnit": 1,
+                      "locked": false
+                    },
+                    {
+                      "id": "vid_002",
+                      "title": "النهايات - أمثلة",
+                      "durationSec": 720,
+                      "unitNumber": 1,
+                      "orderInUnit": 2,
+                      "locked": false
+                    },
+                    {
+                      "id": "vid_011",
+                      "title": "التفاضل - الوحدة 2",
+                      "durationSec": 900,
+                      "unitNumber": 2,
+                      "orderInUnit": 1,
+                      "locked": true
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": {
+            "description": "المادة غير موجودة",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "statusCode": 404,
+                  "message": "المادة غير موجودة"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/videos/{id}": {
+      "get": {
+        "tags": ["Videos"],
+        "summary": "تفاصيل الدرس وال chapters والفيديوهات المقترحة | Get Lesson Details",
+        "description": "يعيد تفاصيل الدرس (الفيديو)، بما في ذلك رابط الـ PDF، معرف التقييم اليومي، المعلم، الفصول/القطع (chapters) مع حالاتها (منجزة، قيد التشغيل، مقفلة)، الفيديوهات ذات الصلة من نفس المادة، والعلامة المائية للطالب.",
+        "operationId": "getLesson",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "بيانات الدرس بنجاح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "video": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "title": { "type": "string" },
+                        "description": { "type": "string", "nullable": true },
+                        "streamUrl": { "type": "string", "nullable": true },
+                        "pdfUrl": { "type": "string", "nullable": true },
+                        "durationSec": { "type": "integer" },
+                        "unitName": { "type": "string" },
+                        "subHeader": { "type": "string" },
+                        "teacherName": { "type": "string", "nullable": true },
+                        "dailyQuizId": { "type": "string", "nullable": true }
+                      }
+                    },
+                    "chapters": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "title": { "type": "string" },
+                          "startSec": { "type": "integer" },
+                          "endSec": { "type": "integer" },
+                          "durationText": { "type": "string" },
+                          "status": { "type": "string", "enum": ["COMPLETED", "PLAYING", "UNPLAYED", "LOCKED"] }
+                        }
+                      }
+                    },
+                    "relatedVideos": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "title": { "type": "string" },
+                          "subjectName": { "type": "string" },
+                          "teacherName": { "type": "string", "nullable": true },
+                          "durationText": { "type": "string" },
+                          "unitName": { "type": "string" }
+                        }
+                      }
+                    },
+                    "watermark": {
+                      "type": "object",
+                      "properties": {
+                        "name": { "type": "string" },
+                        "phone": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "description": "الفيديو غير موجود" }
+        }
+      }
+    },
+    "/videos/{id}/stream": {
+      "get": {
+        "tags": ["Videos"],
+        "summary": "الحصول على رابط بث الفيديو + علامة مائية",
+        "description": "يرجع `streamUrl` و `watermark` (اسم الطالب ورقم هاتفه) لإظهارها على المشغّل. **مهم**: تحقّق الـ quota (locked) و عدّاد `maxViews` على كل طلب. يتطلب توكين STUDENT.\n\n> ⚠️ **علامة مائية**: اعرض `watermark.name` و `watermark.phone` على المشغّل لمنع إعادة المشاركة.\n\n> ⚠️ **حدّ المشاهدات**: إذا كان المستخدم قد شاهد الفيديو `maxViews` مرات (افتراضياً 3)، سيرد بـ 403 حتى لو الـ quota يسمح.\n\nReturns the stream URL, watermark info, and playback config. Validates quota AND maxViews on every call. Requires STUDENT JWT.",
+        "operationId": "getVideoStream",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "vid_001" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "بيانات البث ومتطلبات المشغّل",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StreamTokenResponse" },
+                "example": {
+                  "streamUrl": "https://cdn.bina-academy.ps/videos/vid_001/master.m3u8",
+                  "watermark": {
+                    "name": "أحمد محمود",
+                    "phone": "0591234567"
+                  },
+                  "playbackRates": [0.75, 1, 1.25, 1.5, 2],
+                  "qualities": ["auto", "360p", "480p", "720p", "1080p"]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": {
+            "description": "الاشتراك غير فعّال **أو** الفيديو خارج الحصة **أو** استُنفدت المشاهدات",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "examples": {
+                  "noSub": {
+                    "summary": "لا اشتراك فعّال",
+                    "value": { "statusCode": 403, "message": "الاشتراك غير فعّال" }
+                  },
+                  "outOfQuota": {
+                    "summary": "الفيديو خارج حصة الخطة",
+                    "value": { "statusCode": 403, "message": "هذا الفيديو غير متاح في خطتك" }
+                  },
+                  "maxViews": {
+                    "summary": "تم بلوغ maxViews",
+                    "value": { "statusCode": 403, "message": "تم استنفاد عدد المشاهدات المسموح" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "الفيديو غير موجود أو غير منشور",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "statusCode": 404,
+                  "message": "الفيديو غير موجود"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/videos/{id}/mark-viewed": {
+      "post": {
+        "tags": ["Videos"],
+        "summary": "تأكيد أن الطالب شاهد الفيديو (عدّاد)",
+        "description": "يزيد `viewCount` لهذا الطالب على هذا الفيديو بمقدار 1 ويحدّث `lastViewed`. **استدعِه عند اكتمال المشاهدة** أو عند الإغلاق (لاحتساب المشاهدات بدقة). لا يفحص quota أو maxViews هنا — التحقق يحدث في `/stream`. يتطلب توكين STUDENT.\n\nIncrements view count and updates lastViewed timestamp. Call when playback completes (or on app foreground-close) to track accurately.",
+        "operationId": "markVideoViewed",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "vid_001" }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "تم تسجيل المشاهدة",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "viewCount": { "type": "integer", "example": 2 },
+                    "maxViews": { "type": "integer", "example": 3 },
+                    "triggerQuiz": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "title": { "type": "string", "example": "اختبار قصير: الفيزياء" },
+                        "subjectId": { "type": "string" },
+                        "questions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": { "type": "string" },
+                              "text": { "type": "string" },
+                              "options": {
+                                "type": "array",
+                                "items": { "type": "string" }
+                              },
+                              "answer": { "type": "string" }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": {
+            "description": "الفيديو غير موجود",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "statusCode": 404,
+                  "message": "الفيديو غير موجود"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/videos/{id}/download-token": {
+      "get": {
+        "tags": ["Videos"],
+        "summary": "توكين التنزيل بدون إنترنت",
+        "description": "يولّد توكين تنزيل صالحة لمدة `downloadDays` (افتراضياً 7 أيام من DB). **التوكين حالياً placeholder نصي** (`offline_{videoId}_{userId}_{ts}`) — يلزم ربطه بـ Signed URL من CDN لاحقاً.\n\n> ⚠️ **Expiry**: احفظ `expiresAt` محلياً واطلب توكين جديداً قبل انتهائه.\n\nGenerates an offline download token valid for `downloadDays` (default 7). Currently the token is a placeholder string — to be wired to CDN signed URLs.",
+        "operationId": "getVideoDownloadToken",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "vid_001" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "توكين التنزيل وتاريخ الانتهاء",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DownloadTokenResponse" },
+                "example": {
+                  "token": "offline_vid_001_clv123abc_1719600000000",
+                  "expiresAt": "2026-07-05T15:00:00.000Z",
+                  "downloadDays": 7
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": {
+            "description": "الاشتراك غير فعّال أو الفيديو خارج الحصة",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "statusCode": 403,
+                  "message": "هذا الفيديو غير متاح في خطتك"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "الفيديو غير موجود",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "statusCode": 404,
+                  "message": "الفيديو غير موجود"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/subscriptions/plans": {
+      "get": {
+        "tags": ["Subscriptions"],
+        "summary": "قائمة خطط الاشتراك الفعّالة (عام، بدون توكين)",
+        "description": "يعرض كل خطط الاشتراك التي `isActive=true`، مرتّبة تصاعدياً بالمدة. عام — لا يتطلب تسجيل دخول.\n\nLists active subscription plans ordered by duration. Public — no auth required.",
+        "operationId": "listSubscriptionPlans",
+        "responses": {
+          "200": {
+            "description": "قائمة الخطط",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/SubscriptionPlan" }
+                },
+                "example": [
+                  {
+                    "id": "plan_trial",
+                    "type": "TRIAL",
+                    "nameAr": "تجريبي",
+                    "durationDays": 7,
+                    "discountPercent": 0,
+                    "priceIls": 0,
+                    "videosPerSubject": 3,
+                    "isActive": true,
+                    "createdAt": "2026-01-01T00:00:00.000Z"
+                  },
+                  {
+                    "id": "plan_monthly",
+                    "type": "MONTHLY",
+                    "nameAr": "اشتراك شهري",
+                    "durationDays": 30,
+                    "discountPercent": 0,
+                    "priceIls": 80,
+                    "videosPerSubject": 10,
+                    "isActive": true,
+                    "createdAt": "2026-01-01T00:00:00.000Z"
+                  },
+                  {
+                    "id": "plan_quarterly",
+                    "type": "QUARTERLY",
+                    "nameAr": "اشتراك ربع سنوي",
+                    "durationDays": 90,
+                    "discountPercent": 20,
+                    "priceIls": 200,
+                    "videosPerSubject": 20,
+                    "isActive": true,
+                    "createdAt": "2026-01-01T00:00:00.000Z"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/subscriptions/me": {
+      "get": {
+        "tags": ["Subscriptions"],
+        "summary": "اشتراك الطالب الفعّال",
+        "description": "يعرض آخر اشتراك فعّال (isActive=true) للطالب الحالي مع `plan` كامل. يتطلب توكين STUDENT.\n\nReturns the student's most recent active subscription with full plan. Requires STUDENT JWT.",
+        "operationId": "getMySubscription",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "اشتراك الطالب",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StudentSubscription" },
+                "example": {
+                  "id": "sub_001",
+                  "userId": "clv123abc",
+                  "planId": "plan_monthly",
+                  "startDate": "2026-06-01T00:00:00.000Z",
+                  "endDate": "2026-07-01T00:00:00.000Z",
+                  "isActive": true,
+                  "isFrozen": false,
+                  "notes": null,
+                  "createdAt": "2026-06-01T00:00:00.000Z",
+                  "plan": {
+                    "id": "plan_monthly",
+                    "type": "MONTHLY",
+                    "nameAr": "اشتراك شهري",
+                    "durationDays": 30,
+                    "discountPercent": 0,
+                    "priceIls": 80,
+                    "videosPerSubject": 10,
+                    "isActive": true,
+                    "createdAt": "2026-01-01T00:00:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/dashboard": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "بيانات شاشة الرئيسية للموبايل | Mobile Home Screen Dashboard",
+        "description": "يعيد بيانات لوحة معلومات الطالب بما في ذلك تقدمه العام، تفاصيل الفيديو الأخير لمتابعة التعلم، أهداف اليوم مع النسبة والرسالة الترحيبية، حالة الاختبار اليومي، والمواد المقترحة لليوم.",
+        "operationId": "getDashboard",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "بيانات لوحة المعلومات بنجاح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "studentName": { "type": "string" },
+                    "generalProgress": { "type": "integer" },
+                    "continueLearning": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "videoId": { "type": "string" },
+                        "videoTitle": { "type": "string" },
+                        "subjectName": { "type": "string" },
+                        "unitName": { "type": "string" },
+                        "lessonText": { "type": "string" },
+                        "durationSec": { "type": "integer" },
+                        "timeLeftMin": { "type": "integer" },
+                        "progressPercent": { "type": "integer" }
+                      }
+                    },
+                    "todayGoals": {
+                      "type": "object",
+                      "properties": {
+                        "completedCount": { "type": "integer" },
+                        "totalCount": { "type": "integer" },
+                        "percentage": { "type": "integer" },
+                        "text": { "type": "string" }
+                      }
+                    },
+                    "dailyQuiz": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "title": { "type": "string" },
+                        "description": { "type": "string" },
+                        "isAvailable": { "type": "boolean" },
+                        "buttonText": { "type": "string" },
+                        "points": { "type": "integer" }
+                      }
+                    },
+                    "suggestedSubjects": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "subjectName": { "type": "string" },
+                          "teacherName": { "type": "string" },
+                          "rating": { "type": "number" }
+                        }
+                      }
+                    },
+                    "subjectShopping": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "name": { "type": "string" },
+                          "priceIls": { "type": "number" },
+                          "isSubscribed": { "type": "boolean" },
+                          "isInCart": { "type": "boolean" },
+                          "teacher": {
+                            "type": "object",
+                            "nullable": true,
+                            "properties": {
+                              "id": { "type": "string" },
+                              "name": { "type": "string" },
+                              "avatarUrl": { "type": "string", "format": "uri" },
+                              "rating": { "type": "number" }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/goals": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "قائمة أهداف الطالب لليوم والأهداف المؤرشفة | List Student Daily & Archived Goals",
+        "description": "يعيد قائمة بأهداف اليوم الحالي (مع حالة الإنجاز) وقائمة بالأهداف السابقة المؤرشفة.",
+        "operationId": "listGoals",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "قائمة الأهداف",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "today": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/DailyGoal" }
+                    },
+                    "archived": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/DailyGoal" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Users"],
+        "summary": "إضافة هدف جديد لليوم | Create New Daily Goal",
+        "description": "يضيف هدفاً جديداً لقائمة مهام اليوم الحالي.",
+        "operationId": "createGoal",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["title"],
+                "properties": {
+                  "title": { "type": "string", "example": "قراءة فصل من كتاب الكيمياء" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "تم إنشاء الهدف بنجاح",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DailyGoal" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/goals/{id}": {
+      "patch": {
+        "tags": ["Users"],
+        "summary": "تحديث أو تبديل حالة الهدف | Update Goal Status or Title",
+        "description": "يسمح بتحديث حالة إنجاز الهدف (معلم كمنجز/غير منجز) أو تعديل عنوانه.",
+        "operationId": "updateGoal",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "completed": { "type": "boolean" },
+                  "title": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "تم تحديث الهدف بنجاح",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DailyGoal" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "description": "غير مصرح لك بتعديل هذا الهدف" },
+          "404": { "description": "الهدف غير موجود" }
+        }
+      },
+      "delete": {
+        "tags": ["Users"],
+        "summary": "حذف هدف | Delete Goal",
+        "description": "يحذف الهدف المحدد.",
+        "operationId": "deleteGoal",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "تم حذف الهدف بنجاح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "description": "غير مصرح لك بحذف هذا الهدف" },
+          "404": { "description": "الهدف غير موجود" }
+        }
+      }
+    },
+    "/performance": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "تحليل أداء ومستوى الطالب | Get Student Performance Analytics",
+        "description": "يعيد مقاييس أداء الطالب: نسبة تحقيق الأهداف الأسبوعية، المقارنة مع الأقران، ساعات الدراسة مقسمة حسب أيام الأسبوع الحالي، مستوى إنجاز المواد، وقائمة بآخر الاختبارات التي تم حلها مع نتائجها.",
+        "operationId": "getPerformance",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "بيانات الأداء بنجاح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "goalsAchievementPercent": { "type": "integer" },
+                    "peerComparisonPercent": { "type": "integer" },
+                    "weeklyStudyHours": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "day": { "type": "string" },
+                          "hours": { "type": "number" }
+                        }
+                      }
+                    },
+                    "subjectProgress": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "subjectName": { "type": "string" },
+                          "progressPercent": { "type": "integer" }
+                        }
+                      }
+                    },
+                    "recentQuizzes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "title": { "type": "string" },
+                          "score": { "type": "integer" },
+                          "totalQuestions": { "type": "integer" },
+                          "dateText": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/admin/dashboard": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "إحصائيات لوحة الإدارة",
+        "description": "يعرض KPIs: عدد الطلاب الكلي/الفعّال/التجريبي، اشتراكات هذا الشهر والشهر السابق، إيراد تقديري بالشيكل، إجمالي الفيديوهات المنشورة ونسبة الإكمال، آخر 10 طلاب وأعلى 5 فيديوهات مشاهدةً. **يتطلب توكين ADMIN**.\n\nDashboard KPIs: students breakdown, monthly subscriptions, estimated revenue (ILS), published videos and completion rate, latest 10 students and top 5 videos by views.",
+        "operationId": "getAdminDashboard",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "إحصائيات شاملة",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AdminDashboardStats" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/admin/students": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "قائمة الطلاب مع فلاتر",
+        "description": "يعرض كل الطلاب (role=STUDENT) مع آخر اشتراك فعّال وعدّاد مشاهداتهم. يدعم فلاتر `grade`, `branch`, `search` (يبحث في `phone` و `name`)، و `subscriptionStatus`. **ملاحظة:** الفلتر `subscriptionStatus` مُعرَّف في DTO لكن **غير منفّذ في الـ query** حالياً — كل الفلترة الفعلية على grade/branch/search. يتطلب توكين ADMIN.\n\nList students with last active subscription and view count. Supports grade/branch/search filters. `subscriptionStatus` is defined in DTO but **not implemented in the query logic** — actual filtering works on grade/branch/search only.",
+        "operationId": "listStudents",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "grade", "in": "query", "schema": { "type": "string", "enum": ["GRADE_11", "GRADE_12"] } },
+          { "name": "branch", "in": "query", "schema": { "type": "string", "enum": ["SCIENTIFIC", "LITERARY"] } },
+          { "name": "search", "in": "query", "description": "يبحث في phone و name (case-insensitive)", "schema": { "type": "string" } },
+          { "name": "subscriptionStatus", "in": "query", "description": "⚠️ مستقبلي - غير منفّذ حالياً", "schema": { "type": "string", "enum": ["active", "trial", "expired", "none"] } }
+        ],
+        "responses": {
+          "200": {
+            "description": "قائمة الطلاب",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/StudentListItem" }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/admin/students/{id}": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "تفاصيل طالب واحد",
+        "description": "يعرض طالباً مع كل اشتراكاته (مُرتّبة من الأحدث) وآخر 20 مشاهدة فيديو. يتطلب توكين ADMIN.",
+        "operationId": "getStudent",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "بيانات الطالب الكاملة",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StudentDetail" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": {
+            "description": "الطالب غير موجود",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "statusCode": 404, "message": "الطالب غير موجود" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Admin"],
+        "summary": "تحديث بيانات طالب",
+        "description": "يحدّث `grade`, `branch`, `parentPhone`, `isActive`. كل الحقول اختيارية. يتطلب توكين ADMIN.",
+        "operationId": "updateStudent",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateStudentDto" },
+              "example": { "grade": "GRADE_12", "branch": "SCIENTIFIC", "parentPhone": "0599876543", "isActive": true }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "الطالب بعد التحديث",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StudentListItem" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": {
+            "description": "الطالب غير موجود",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/students/{id}/subscription/freeze": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "تجميد/إلغاء تجميد اشتراك طالب",
+        "description": "يضبط `isFrozen` على الـ subscription الفعّال الحالي. يستخدم عند السفر أو الانقطاع المؤقت. يتطلب توكين ADMIN.",
+        "operationId": "freezeStudentSubscription",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/FreezeSubscriptionDto" },
+              "example": { "freeze": true, "reason": "سفر لمدة شهر" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "تم تجميد/إلغاء تجميد الاشتراك",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StudentSubscription" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": {
+            "description": "لا يوجد اشتراك فعّال",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "statusCode": 404, "message": "لا يوجد اشتراك فعّال" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/students/{id}/subscription/grant": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "منح/تجديد اشتراك لطالب",
+        "description": "يلغي أي اشتراك فعّال ويولّد اشتراكاً جديداً بنوع الخطة المحدّد. اختيارياً `durationDays` لتجاوز مدة الخطة الافتراضية. يتطلب توكين ADMIN.",
+        "operationId": "grantStudentSubscription",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/GrantSubscriptionDto" },
+              "examples": {
+                "monthly": { "summary": "اشتراك شهري", "value": { "planType": "MONTHLY" } },
+                "trialCustom": { "summary": "تجريبي لمدة 14 يوم", "value": { "planType": "TRIAL", "durationDays": 14 } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "تم منح الاشتراك",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StudentSubscription" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": {
+            "description": "خطة الاشتراك غير موجودة",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "statusCode": 404, "message": "الخطة غير موجودة" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/videos": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "قائمة كل الفيديوهات (admin)",
+        "description": "كل الفيديوهات بكل الحالات (DRAFT/PENDING_REVIEW/PUBLISHED) مع المادة والمعلم وعدّاد المشاهدات. يتطلب توكين ADMIN.",
+        "operationId": "listAdminVideos",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "قائمة الفيديوهات",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/AdminVideoListItem" }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Admin"],
+        "summary": "إنشاء فيديو جديد",
+        "description": "ينشئ فيديو جديد بحالة DRAFT افتراضياً. يتطلب توكين ADMIN.",
+        "operationId": "createAdminVideo",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateVideoDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "تم إنشاء الفيديو",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Video" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/admin/videos/{id}": {
+      "put": {
+        "tags": ["Admin"],
+        "summary": "تحديث فيديو",
+        "description": "PATCH-style update — كل الحقول في DTO اختيارية. يتطلب توكين ADMIN.",
+        "operationId": "updateAdminVideo",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateVideoDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "الفيديو بعد التحديث",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Video" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "delete": {
+        "tags": ["Admin"],
+        "summary": "حذف فيديو (admin - hard delete)",
+        "description": "**تحذير**: حذف نهائي — يحذف الـ Video وكل VideoViews المرتبطة (CASCADE). يتطلب توكين ADMIN.",
+        "operationId": "deleteAdminVideo",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "تم الحذف",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Video" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/admin/subjects": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "قائمة كل المواد (admin)",
+        "description": "كل المواد مرتّبة بالصف/الفرع/الاسم مع اسم المعلم وعدّاد الفيديوهات. يتطلب توكين ADMIN.",
+        "operationId": "listAdminSubjects",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "قائمة المواد",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Subject" }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/admin/plans": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "قائمة كل خطط الاشتراك (حتى غير الفعّالة)",
+        "description": "كل الخطط مرتّبة بالمدة. يتطلب توكين ADMIN.",
+        "operationId": "listAdminPlans",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "قائمة الخطط",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/SubscriptionPlan" }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/admin/plans/{id}": {
+      "put": {
+        "tags": ["Admin"],
+        "summary": "تحديث خطة اشتراك",
+        "description": "PATCH-style — `priceIls`, `videosPerSubject`, `discountPercent`, `isActive`. يتطلب توكين ADMIN.",
+        "operationId": "updateAdminPlan",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdatePlanDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "الخطة بعد التحديث",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SubscriptionPlan" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/admin/teachers": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "قائمة المعلمين المتقدمة | List Admin Teachers",
+        "description": "قائمة المعلمين مع دعم البحث والترقيم والفلترة والبيانات الإضافية عالي الدقة. يتطلب توكين ADMIN.\n\nList teachers with search, pagination, and grade/specialty filters. Requires ADMIN JWT.",
+        "operationId": "listAdminTeachers",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "search", "in": "query", "description": "البحث بالاسم، التخصص، البريد الإلكتروني أو المرحلة", "schema": { "type": "string" } },
+          { "name": "page", "in": "query", "description": "رقم الصفحة", "schema": { "type": "string", "default": "1" } },
+          { "name": "limit", "in": "query", "description": "عدد العناصر بالصفحة", "schema": { "type": "string", "default": "10" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "قائمة المعلمين المفلترة بنجاح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "teachers": { "type": "array", "items": { "$ref": "#/components/schemas/Teacher" } },
+                    "total": { "type": "integer" },
+                    "page": { "type": "integer" },
+                    "limit": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Admin"],
+        "summary": "إضافة معلم جديد | Add Teacher",
+        "description": "إضافة معلم جديد وإنشاء حساب مستخدم وربطه بالمادة المحددة. يتطلب توكين ADMIN.\n\nCreates a new teacher user and links them to the specified subject. Requires ADMIN JWT.",
+        "operationId": "createTeacher",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateTeacherDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "تم إنشاء المعلم بنجاح",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CreateTeacherResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/admin/teachers/dashboard": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "إحصائيات وطلبات المعلمين | Teachers Dashboard Stats & Jobs",
+        "description": "يعود بإحصائيات المعلمين، طلبات التوظيف الجديدة وقائمة المعلمين المتميزين. يتطلب توكين ADMIN.\n\nReturns teachers KPI stats, new job applications, and top teachers list. Requires ADMIN JWT.",
+        "operationId": "getTeachersDashboard",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "بيانات لوحة المعلمين بنجاح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stats": {
+                      "type": "object",
+                      "properties": {
+                        "totalTeachers": { "type": "integer" },
+                        "activeClasses": { "type": "integer" },
+                        "performanceRating": { "type": "number" },
+                        "contentHours": { "type": "integer" }
+                      }
+                    },
+                    "applications": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "name": { "type": "string" },
+                          "title": { "type": "string" },
+                          "timeText": { "type": "string" }
+                        }
+                      }
+                    },
+                    "topTeachers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "name": { "type": "string" },
+                          "satisfactionRate": { "type": "integer" },
+                          "avatar": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/admin/upload": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "رفع ملفات / صور | Upload Files/Images",
+        "description": "رفع ملف (صورة المعلم، ملف مرفق مع الفيديو إلخ) وحفظه محلياً في مجلد uploads. يتطلب توكين ADMIN.\n\nUploads a file (avatar, attachment, etc.) and saves it locally. Requires ADMIN JWT.",
+        "operationId": "uploadFile",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "تم رفع الملف بنجاح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": { "type": "string", "example": "/uploads/1783159635596-123456789.png" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/cart": {
+      "get": {
+        "tags": ["Cart"],
+        "summary": "عرض سلة التسوق | Get Cart",
+        "description": "يعود بالمواد الموجودة في السلة ومجموع أسعارها. يتطلب توكين STUDENT.\n\nReturns items in the student's cart and the total price. Requires STUDENT JWT.",
+        "operationId": "getCart",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "سلة التسوق بنجاح",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CartResponse" },
+                "example": {
+                  "items": [
+                    {
+                      "id": "cart_item_001",
+                      "subjectId": "sub_math",
+                      "name": "الرياضيات",
+                      "grade": "GRADE_12",
+                      "branch": "SCIENTIFIC",
+                      "priceIls": 80.0,
+                      "teacherName": "أ. خالد عمر"
+                    }
+                  ],
+                  "totalPriceIls": 80.0
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/cart/add": {
+      "post": {
+        "tags": ["Cart"],
+        "summary": "إضافة مادة للسلة | Add to Cart",
+        "description": "يضيف مادة إلى سلة التسوق. يفحص وجود المادة، عدم اشتراك الطالب فيها باشتراك مدفوع فعال، وعدم وجودها في السلة مسبقاً. يتطلب توكين STUDENT.\n\nAdds a subject to the cart. Checks subject existence, active paid subscriptions, and previous inclusion. Requires STUDENT JWT.",
+        "operationId": "addToCart",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AddCartItemDto" },
+              "example": { "subjectId": "sub_math" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "تمت الإضافة بنجاح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "تم إضافة المادة للسلة بنجاح" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "المادة مضافة مسبقاً أو هناك اشتراك فعال",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "examples": {
+                  "alreadySubscribed": {
+                    "summary": "مشترك بالفعل",
+                    "value": { "statusCode": 400, "message": "أنت مشترك بالفعل في هذه المادة واشتراكك فعال" }
+                  },
+                  "alreadyInCart": {
+                    "summary": "في السلة بالفعل",
+                    "value": { "statusCode": 400, "message": "المادة موجودة بالفعل في السلة" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": {
+            "description": "المادة غير موجودة",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "statusCode": 404, "message": "المادة غير موجودة" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cart/remove/{subjectId}": {
+      "delete": {
+        "tags": ["Cart"],
+        "summary": "حذف مادة من السلة | Remove from Cart",
+        "description": "يحذف مادة من سلة التسوق. يتطلب توكين STUDENT.\n\nRemoves a subject from the cart. Requires STUDENT JWT.",
+        "operationId": "removeFromCart",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "subjectId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "sub_math" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "تم الحذف بنجاح",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "تم حذف المادة من السلة بنجاح" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": {
+            "description": "المادة غير موجودة في السلة",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "statusCode": 404, "message": "المادة غير موجودة في السلة" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cart/checkout": {
+      "post": {
+        "tags": ["Cart"],
+        "summary": "إتمام الشراء والدفع الافتراضي | Checkout Cart",
+        "description": "يشتري المواد الموجودة في السلة، يربطها باشتراك مدفوع فعال (أو ينشئ اشتراك شهري جديد)، يفرغ السلة، ويحسب المجموع. يتطلب توكين STUDENT.\n\nPerforms a checkout of the cart using simulated wallet payment. Activates subscription for these subjects and clears the cart. Requires STUDENT JWT.",
+        "operationId": "checkoutCart",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "تم الشراء وتفعيل الاشتراك بنجاح",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CheckoutResponse" },
+                "example": {
+                  "message": "تم الشراء وتفعيل الاشتراك بنجاح عن طريق المحفظة الإلكترونية الافتراضية",
+                  "totalPriceIls": 80.0,
+                  "subscriptionId": "sub_001",
+                  "endDate": "2026-07-28T15:00:00.000Z",
+                  "subjects": ["الرياضيات"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "السلة فارغة",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "statusCode": 400, "message": "السلة فارغة" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT Bearer.\n\n- توكين STUDENT: يولَّد من `/auth/verify-otp` (صالح 30 يوم، يستخدم `JWT_SECRET`)\n- توكين ADMIN: يولَّد من `/auth/admin/login` (صالح 7 أيام، يستخدم `ADMIN_JWT_SECRET` أو `JWT_SECRET` كاحتياط)\n\n> ⚠️ **مهم**: لا تستخدم توكين STUDENT في endpoints الـ Admin والعكس صحيح — كلاهما سيرد بـ 401."
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Validation error - عادةً من class-validator على الحقول المطلوبة/الصيغة",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": {
+              "statusCode": 400,
+              "message": ["phone must match /^05\\d{8}$/ regular expression"],
+              "error": "Bad Request"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "التوكن مفقود/منتهي/غير صالح أو الـ role لا يطابق الـ endpoint",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "examples": {
+              "missingToken": { "summary": "بدون توكن", "value": { "statusCode": 401, "message": "Unauthorized" } },
+              "badRole": { "summary": "توكين لا يطابق الـ role", "value": { "statusCode": 401, "message": "جلسة غير صالحة" } }
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "statusCode": { "type": "integer", "example": 400 },
+          "message": { "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }] },
+          "error": { "type": "string", "example": "Bad Request" }
+        },
+        "required": ["statusCode", "message"]
+      },
+      "DailyGoal": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "goal_123" },
+          "title": { "type": "string", "example": "مشاهدة فيديو الفيزياء (قوانين نيوتن)" },
+          "completed": { "type": "boolean", "example": false },
+          "dueDate": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "title", "completed", "dueDate"]
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "clv123abc" },
+          "phone": { "type": "string", "example": "0591234567", "description": "رقم هاتف فلسطيني 10 أرقام يبدأ بـ 05" },
+          "name": { "type": "string", "nullable": true, "example": "أحمد محمود" },
+          "grade": { "type": "string", "nullable": true, "enum": ["GRADE_11", "GRADE_12"] },
+          "branch": { "type": "string", "nullable": true, "enum": ["SCIENTIFIC", "LITERARY"] },
+          "parentPhone": { "type": "string", "nullable": true, "example": "0599876543" },
+          "role": { "type": "string", "enum": ["STUDENT", "TEACHER", "ADMIN"], "example": "STUDENT" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "phone", "role", "createdAt"]
+      },
+      "Subscription": {
+        "type": "object",
+        "properties": {
+          "planType": { "type": "string", "enum": ["TRIAL", "MONTHLY", "QUARTERLY", "YEARLY"] },
+          "planName": { "type": "string", "example": "اشتراك شهري" },
+          "endDate": { "type": "string", "format": "date-time" },
+          "isActive": { "type": "boolean", "description": "true فقط إذا isActive && !isFrozen && endDate > now" },
+          "videosPerSubject": { "type": "integer", "example": 10 }
+        }
+      },
+      "MeResponse": {
+        "allOf": [
+          { "$ref": "#/components/schemas/User" },
+          {
+            "type": "object",
+            "properties": {
+              "subscription": { "oneOf": [{ "$ref": "#/components/schemas/Subscription" }, { "type": "null" }] }
+            }
+          }
+        ]
+      },
+      "SubjectListItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string", "example": "الرياضيات" },
+          "grade": { "type": "string", "enum": ["GRADE_11", "GRADE_12"] },
+          "branch": { "type": "string", "enum": ["SCIENTIFIC", "LITERARY"] },
+          "teacherName": { "type": "string", "nullable": true },
+          "videoCount": { "type": "integer", "description": "عدد الفيديوهات المنشورة فقط" },
+          "progressPercent": { "type": "integer", "description": "مستوى إنجاز المادة كنسبة مئوية" },
+          "locked": { "type": "boolean", "description": "حالة قفل المادة بناء على الاشتراك" }
+        }
+      },
+      "Subject": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "grade": { "type": "string", "enum": ["GRADE_11", "GRADE_12"] },
+          "branch": { "type": "string", "enum": ["SCIENTIFIC", "LITERARY"] },
+          "teacherId": { "type": "string", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "priceIls": { "type": "number", "example": 50.0 },
+          "teacher": { "type": "object", "nullable": true, "properties": { "name": { "type": "string" } } },
+          "_count": { "type": "object", "properties": { "videos": { "type": "integer" } } }
+        }
+      },
+      "SubjectVideoItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "durationSec": { "type": "integer", "example": 645, "description": "مدة الفيديو بالثواني" },
+          "unitNumber": { "type": "integer", "example": 1 },
+          "orderInUnit": { "type": "integer", "example": 1 },
+          "locked": { "type": "boolean", "description": "true إذا كان خارج حصة الخطة (بناءً على الترتيب)" }
+        }
+      },
+      "SubjectVideosResponse": {
+        "type": "object",
+        "properties": {
+          "subject": { "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" } } },
+          "videos": { "type": "array", "items": { "$ref": "#/components/schemas/SubjectVideoItem" } },
+          "quota": { "type": "integer", "description": "عدد الفيديوهات المتاحة من خطة الطالب" }
+        }
+      },
+      "StreamTokenResponse": {
+        "type": "object",
+        "properties": {
+          "streamUrl": { "type": "string", "format": "uri", "nullable": true },
+          "watermark": {
+            "type": "object",
+            "description": "اعرض name و phone على المشغّل لمنع التشارك",
+            "properties": {
+              "name": { "type": "string", "example": "أحمد محمود" },
+              "phone": { "type": "string", "example": "0591234567" }
+            }
+          },
+          "playbackRates": { "type": "array", "items": { "type": "number" }, "example": [0.75, 1, 1.25, 1.5, 2] },
+          "qualities": { "type": "array", "items": { "type": "string" }, "example": ["auto", "360p", "480p", "720p", "1080p"] }
+        }
+      },
+      "DownloadTokenResponse": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string", "description": "توكين التنزيل (placeholder حالياً - يلزم ربطه بـ Signed URL من CDN لاحقاً)" },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "downloadDays": { "type": "integer", "example": 7 }
+        }
+      },
+      "SubscriptionPlan": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "type": "string", "enum": ["TRIAL", "MONTHLY", "QUARTERLY", "YEARLY"] },
+          "nameAr": { "type": "string", "example": "اشتراك شهري" },
+          "durationDays": { "type": "integer", "example": 30 },
+          "discountPercent": { "type": "number", "example": 0 },
+          "priceIls": { "type": "number", "example": 80 },
+          "videosPerSubject": { "type": "integer", "example": 10 },
+          "isActive": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "StudentSubscription": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "userId": { "type": "string" },
+          "planId": { "type": "string" },
+          "startDate": { "type": "string", "format": "date-time" },
+          "endDate": { "type": "string", "format": "date-time" },
+          "isActive": { "type": "boolean" },
+          "isFrozen": { "type": "boolean" },
+          "notes": { "type": "string", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "plan": { "$ref": "#/components/schemas/SubscriptionPlan" },
+          "subjects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "subscriptionId": { "type": "string" },
+                "subjectId": { "type": "string" },
+                "subject": { "$ref": "#/components/schemas/Subject" }
+              }
+            }
+          }
+        }
+      },
+      "RegisterDto": {
+        "type": "object",
+        "required": ["phone", "password", "name", "grade", "branch"],
+        "properties": {
+          "phone": { "type": "string", "pattern": "^05\\d{8}$", "example": "0599222222", "description": "رقم هاتف فلسطيني - 10 أرقام يبدأ بـ 05" },
+          "password": { "type": "string", "minLength": 6, "maxLength": 20, "example": "student_password", "description": "كلمة المرور الخاصة بالطالب" },
+          "name": { "type": "string", "example": "باسم سعيد", "description": "الاسم الكامل للطالب" },
+          "grade": { "type": "string", "enum": ["GRADE_11", "GRADE_12"], "example": "GRADE_11" },
+          "branch": { "type": "string", "enum": ["SCIENTIFIC", "LITERARY"], "example": "SCIENTIFIC" },
+          "parentPhone": { "type": "string", "pattern": "^05\\d{8}$", "example": "0599987654", "description": "رقم هاتف ولي الأمر (اختياري)" }
+        }
+      },
+      "LoginDto": {
+        "type": "object",
+        "required": ["phone", "password"],
+        "properties": {
+          "phone": { "type": "string", "pattern": "^05\\d{8}$", "example": "0599222222" },
+          "password": { "type": "string", "example": "student_password" }
+        }
+      },
+      "SetupProfileDto": {
+        "type": "object",
+        "required": ["grade", "branch"],
+        "properties": {
+          "grade": { "type": "string", "enum": ["GRADE_11", "GRADE_12"] },
+          "branch": { "type": "string", "enum": ["SCIENTIFIC", "LITERARY"] }
+        }
+      },
+      "AdminLoginDto": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "format": "password" }
+        }
+      },
+      "UpdateParentPhoneDto": {
+        "type": "object",
+        "required": ["parentPhone"],
+        "properties": {
+          "parentPhone": { "type": "string", "pattern": "^05\\d{8}$", "example": "0599876543" }
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string", "description": "JWT - صالح 30 يوم" },
+          "user": { "$ref": "#/components/schemas/User" }
+        }
+      },
+      "AdminLoginResponse": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string", "description": "ADMIN JWT - صالح 7 أيام" },
+          "admin": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "email": { "type": "string", "format": "email" },
+              "name": { "type": "string" }
+            }
+          }
+        }
+      },
+      "AdminDashboardStats": {
+        "type": "object",
+        "properties": {
+          "students": {
+            "type": "object",
+            "properties": {
+              "total": { "type": "integer" },
+              "active": { "type": "integer", "description": "لديهم اشتراك فعّال غير منتهي وغير مجمّد" },
+              "trial": { "type": "integer", "description": "لديهم اشتراك TRIAL فعّال" }
+            }
+          },
+          "subscriptions": {
+            "type": "object",
+            "properties": {
+              "thisMonth": { "type": "integer", "description": "اشتراكات هذا الشهر (غير TRIAL)" },
+              "lastMonth": { "type": "integer" }
+            }
+          },
+          "revenue": {
+            "type": "object",
+            "properties": {
+              "thisMonth": { "type": "number", "description": "تقدير بـ ILS" },
+              "currency": { "type": "string", "example": "ILS" }
+            }
+          },
+          "content": {
+            "type": "object",
+            "properties": {
+              "totalVideos": { "type": "integer" },
+              "completionRate": { "type": "integer", "description": "نسبة مئوية مقربة" }
+            }
+          },
+          "recentStudents": { "type": "array", "items": { "$ref": "#/components/schemas/User" } },
+          "topVideos": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "videoId": { "type": "string" },
+                "title": { "type": "string" },
+                "subject": { "type": "string" },
+                "views": { "type": "integer" }
+              }
+            }
+          }
+        }
+      },
+      "StudentListItem": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "phone": { "type": "string" },
+          "name": { "type": "string", "nullable": true },
+          "grade": { "type": "string", "nullable": true, "enum": ["GRADE_11", "GRADE_12"] },
+          "branch": { "type": "string", "nullable": true, "enum": ["SCIENTIFIC", "LITERARY"] },
+          "parentPhone": { "type": "string", "nullable": true },
+          "isActive": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "viewsCount": { "type": "integer" },
+          "subscription": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "planType": { "type": "string" },
+                  "planName": { "type": "string" },
+                  "endDate": { "type": "string", "format": "date-time" },
+                  "isFrozen": { "type": "boolean" }
+                }
+              },
+              { "type": "null" }
+            ]
+          }
+        }
+      },
+      "StudentDetail": {
+        "allOf": [
+          { "$ref": "#/components/schemas/StudentListItem" },
+          {
+            "type": "object",
+            "properties": {
+              "subscriptions": { "type": "array", "items": { "$ref": "#/components/schemas/StudentSubscription" } },
+              "videoViews": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "videoId": { "type": "string" },
+                    "viewCount": { "type": "integer" },
+                    "completed": { "type": "boolean" },
+                    "lastViewed": { "type": "string", "format": "date-time" },
+                    "video": { "type": "object", "properties": { "title": { "type": "string" } } }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "UpdateStudentDto": {
+        "type": "object",
+        "properties": {
+          "grade": { "type": "string", "enum": ["GRADE_11", "GRADE_12"] },
+          "branch": { "type": "string", "enum": ["SCIENTIFIC", "LITERARY"] },
+          "parentPhone": { "type": "string", "pattern": "^05\\d{8}$" },
+          "isActive": { "type": "boolean" }
+        }
+      },
+      "FreezeSubscriptionDto": {
+        "type": "object",
+        "required": ["freeze"],
+        "properties": {
+          "freeze": { "type": "boolean" },
+          "reason": { "type": "string", "description": "يُحفظ في notes" }
+        }
+      },
+      "GrantSubscriptionDto": {
+        "type": "object",
+        "required": ["planType"],
+        "properties": {
+          "planType": { "type": "string", "enum": ["TRIAL", "MONTHLY", "QUARTERLY", "YEARLY"] },
+          "durationDays": { "type": "integer", "minimum": 1, "description": "اختياري - يتجاوز مدة الخطة الافتراضية" },
+          "subjectIds": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "معرفات المواد المشمولة بالاشتراك (اختياري - فارغ يعني كل المواد)"
+          }
+        }
+      },
+      "Video": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "subjectId": { "type": "string" },
+          "teacherId": { "type": "string", "nullable": true },
+          "title": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "streamUrl": { "type": "string", "nullable": true },
+          "durationSec": { "type": "integer" },
+          "unitNumber": { "type": "integer" },
+          "orderInUnit": { "type": "integer" },
+          "maxViews": { "type": "integer", "example": 3 },
+          "downloadDays": { "type": "integer", "example": 7 },
+          "status": { "type": "string", "enum": ["DRAFT", "PENDING_REVIEW", "PUBLISHED"] },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "AdminVideoListItem": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Video" },
+          {
+            "type": "object",
+            "properties": {
+              "subject": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "grade": { "type": "string" },
+                  "branch": { "type": "string" }
+                }
+              },
+              "teacher": { "type": "object", "nullable": true, "properties": { "name": { "type": "string" } } },
+              "_count": { "type": "object", "properties": { "videoViews": { "type": "integer" } } }
+            }
+          }
+        ]
+      },
+      "CreateVideoDto": {
+        "type": "object",
+        "required": ["subjectId", "title"],
+        "properties": {
+          "subjectId": { "type": "string" },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "streamUrl": { "type": "string", "format": "uri" },
+          "durationSec": { "type": "integer", "minimum": 0 },
+          "unitNumber": { "type": "integer", "minimum": 1, "default": 1 },
+          "orderInUnit": { "type": "integer", "minimum": 1, "default": 1 },
+          "status": { "type": "string", "enum": ["DRAFT", "PENDING_REVIEW", "PUBLISHED"], "default": "DRAFT" },
+          "teacherId": { "type": "string" },
+          "pdfUrl": { "type": "string", "format": "uri" },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["text", "options", "answer"],
+              "properties": {
+                "text": { "type": "string", "example": "ما هو رمز عنصر الحديد؟" },
+                "options": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "example": ["Fe", "Cu", "Au", "Ag"]
+                },
+                "answer": { "type": "string", "example": "Fe" }
+              }
+            }
+          }
+        }
+      },
+      "UpdatePlanDto": {
+        "type": "object",
+        "properties": {
+          "priceIls": { "type": "number", "minimum": 0 },
+          "videosPerSubject": { "type": "integer", "minimum": 1 },
+          "discountPercent": { "type": "number", "minimum": 0, "maximum": 100 },
+          "isActive": { "type": "boolean" }
+        }
+      },
+      "Teacher": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "userId": { "type": "string" },
+          "name": { "type": "string" },
+          "bio": { "type": "string", "nullable": true },
+          "commissionRate": { "type": "number", "example": 0.25 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "user": { "type": "object", "properties": { "phone": { "type": "string" } } },
+          "email": { "type": "string", "format": "email" },
+          "specialty": { "type": "string" },
+          "grade": { "type": "string" },
+          "lessons": { "type": "integer" },
+          "rating": { "type": "number" },
+          "status": { "type": "string" },
+          "avatar": { "type": "string", "format": "uri" },
+          "_count": {
+            "type": "object",
+            "properties": {
+              "subjects": { "type": "integer" },
+              "videos": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "AddCartItemDto": {
+        "type": "object",
+        "required": ["subjectId"],
+        "properties": {
+          "subjectId": { "type": "string", "example": "sub_math" }
+        }
+      },
+      "CartItem": {
+        "type": "object",
+        "required": ["id", "subjectId", "name", "grade", "branch", "priceIls"],
+        "properties": {
+          "id": { "type": "string" },
+          "subjectId": { "type": "string" },
+          "name": { "type": "string" },
+          "grade": { "type": "string", "enum": ["GRADE_11", "GRADE_12"] },
+          "branch": { "type": "string", "enum": ["SCIENTIFIC", "LITERARY"] },
+          "priceIls": { "type": "number" },
+          "teacherName": { "type": "string", "nullable": true }
+        }
+      },
+      "CartResponse": {
+        "type": "object",
+        "required": ["items", "totalPriceIls"],
+        "properties": {
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/CartItem" } },
+          "totalPriceIls": { "type": "number" }
+        }
+      },
+      "CheckoutResponse": {
+        "type": "object",
+        "required": ["message", "totalPriceIls", "subscriptionId", "endDate", "subjects"],
+        "properties": {
+          "message": { "type": "string" },
+          "totalPriceIls": { "type": "number" },
+          "subscriptionId": { "type": "string" },
+          "endDate": { "type": "string", "format": "date-time" },
+          "subjects": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "CreateTeacherDto": {
+        "type": "object",
+        "required": ["name", "phone"],
+        "properties": {
+          "name": { "type": "string", "example": "اسماعيل خلة" },
+          "phone": { "type": "string", "pattern": "^05\\d{8}$", "example": "0599123456" },
+          "bio": { "type": "string", "example": "مدرس كيمياء ذو خبرة طويلة" },
+          "avatarUrl": { "type": "string", "format": "uri", "example": "/uploads/12345-67890.png" },
+          "commissionRate": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.25, "example": 0.25 },
+          "subjectId": { "type": "string", "example": "cmr0ix6fq0001bgy5..." }
+        }
+      },
+      "CreateTeacherResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "userId": { "type": "string" },
+          "name": { "type": "string" },
+          "bio": { "type": "string", "nullable": true },
+          "avatarUrl": { "type": "string", "nullable": true },
+          "commissionRate": { "type": "number" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "user": { "type": "object", "properties": { "phone": { "type": "string" } } },
+          "subjects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

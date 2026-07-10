@@ -42,6 +42,7 @@ model User {
   name         String?
   grade        Grade?
   branch       Branch?
+  passwordHash String?  @map("password_hash")
   role         UserRole @default(STUDENT)
   parentPhone  String?  @map("parent_phone")
   isActive     Boolean  @default(true) @map("is_active")
@@ -51,6 +52,11 @@ model User {
   subscriptions Subscription[]
   videoViews    VideoView[]
   teacher       Teacher?
+  dailyGoals    DailyGoal[]
+  quizResults   QuizResult[]
+  studySessions StudySession[]
+  cartItems     CartItem[]
+  chats         Chat[]         @relation("StudentChats")
 
   @@map("users")
 }
@@ -60,12 +66,14 @@ model Teacher {
   userId         String   @unique @map("user_id")
   name           String
   bio            String?
+  avatarUrl      String?  @map("avatar_url")
   commissionRate Float    @default(0.25) @map("commission_rate")
   createdAt      DateTime @default(now()) @map("created_at")
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   subjects Subject[]
   videos   Video[]
+  chats    Chat[]    @relation("TeacherChats")
 
   @@map("teachers")
 }
@@ -77,9 +85,13 @@ model Subject {
   branch    Branch
   teacherId String?  @map("teacher_id")
   createdAt DateTime @default(now()) @map("created_at")
+  priceIls  Float    @default(50.0) @map("price_ils")
 
   teacher Teacher? @relation(fields: [teacherId], references: [id])
   videos  Video[]
+  quizzes Quiz[]
+  subscriptions SubscriptionSubject[]
+  cartItems     CartItem[]
 
   @@unique([name, grade, branch])
   @@map("subjects")
@@ -98,12 +110,15 @@ model Video {
   maxViews    Int         @default(3) @map("max_views")
   downloadDays Int        @default(7) @map("download_days")
   status      VideoStatus @default(DRAFT)
+  pdfUrl      String?     @map("pdf_url")
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
   subject    Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   teacher    Teacher?    @relation(fields: [teacherId], references: [id])
   videoViews VideoView[]
+  chapters   VideoChapter[]
+  questions  VideoQuestion[]
 
   @@map("videos")
 }
@@ -152,6 +167,7 @@ model Subscription {
 
   user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan SubscriptionPlan @relation(fields: [planId], references: [id])
+  subjects SubscriptionSubject[]
 
   @@map("subscriptions")
 }
@@ -177,3 +193,134 @@ model AdminUser {
 
   @@map("admin_users")
 }
+
+model DailyGoal {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  title     String
+  completed Boolean  @default(false)
+  dueDate   DateTime @default(now()) @map("due_date")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("daily_goals")
+}
+
+model Quiz {
+  id             String       @id @default(cuid())
+  title          String
+  subjectId      String?      @map("subject_id")
+  totalQuestions Int          @default(10) @map("total_questions")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  subject        Subject?     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  quizResults    QuizResult[]
+
+  @@map("quizzes")
+}
+
+model QuizResult {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  quizId         String   @map("quiz_id")
+  score          Int
+  totalQuestions Int      @default(10) @map("total_questions")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@map("quiz_results")
+}
+
+model StudySession {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  durationMin Int      @map("duration_min")
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("study_sessions")
+}
+
+model VideoChapter {
+  id        String   @id @default(cuid())
+  videoId   String   @map("video_id")
+  title     String
+  startSec  Int      @map("start_sec")
+  endSec    Int      @map("end_sec")
+  order     Int      @default(1)
+  isPremium Boolean  @default(false) @map("is_premium")
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@map("video_chapters")
+}
+
+model SubscriptionSubject {
+  id             String @id @default(cuid())
+  subscriptionId String @map("subscription_id")
+  subjectId      String @map("subject_id")
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  subject      Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, subjectId])
+  @@map("subscription_subjects")
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  subjectId String   @map("subject_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, subjectId])
+  @@map("cart_items")
+}
+
+model Chat {
+  id         String    @id @default(cuid())
+  studentId  String    @map("student_id")
+  teacherId  String    @map("teacher_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  student    User      @relation("StudentChats", fields: [studentId], references: [id], onDelete: Cascade)
+  teacher    Teacher   @relation("TeacherChats", fields: [teacherId], references: [id], onDelete: Cascade)
+  messages   Message[]
+
+  @@unique([studentId, teacherId])
+  @@map("chats")
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  chatId     String   @map("chat_id")
+  senderId   String   @map("sender_id")
+  content    String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  chat       Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model VideoQuestion {
+  id        String   @id @default(cuid())
+  videoId   String   @map("video_id")
+  text      String
+  options   String   // JSON string of options
+  answer    String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@map("video_questions")
+}
+

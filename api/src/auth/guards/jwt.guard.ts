@@ -55,3 +55,57 @@ export class AdminJwtGuard implements CanActivate {
     return auth.slice(7);
   }
 }
+
+@Injectable()
+export class TeacherJwtGuard implements CanActivate {
+  constructor(private jwt: JwtService, private config: ConfigService) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest();
+    const token = this.extractToken(request);
+    if (!token) throw new UnauthorizedException();
+
+    try {
+      const payload = this.jwt.verify(token, { secret: this.config.get('JWT_SECRET') });
+      if (payload.role !== 'TEACHER') throw new UnauthorizedException();
+      request.user = payload;
+      return true;
+    } catch {
+      throw new UnauthorizedException('جلسة غير صالحة');
+    }
+  }
+
+  private extractToken(request: { headers: { authorization?: string } }) {
+    const auth = request.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) return null;
+    return auth.slice(7);
+  }
+}
+
+@Injectable()
+export class AppUserJwtGuard implements CanActivate {
+  constructor(private jwt: JwtService, private config: ConfigService) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest();
+    const token = this.extractToken(request);
+    if (!token) throw new UnauthorizedException();
+
+    try {
+      const payload = this.jwt.verify(token, { secret: this.config.get('JWT_SECRET') });
+      if (payload.role !== 'STUDENT' && payload.role !== 'TEACHER') {
+        throw new UnauthorizedException();
+      }
+      request.user = payload;
+      return true;
+    } catch {
+      throw new UnauthorizedException('جلسة غير صالحة');
+    }
+  }
+
+  private extractToken(request: { headers: { authorization?: string } }) {
+    const auth = request.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) return null;
+    return auth.slice(7);
+  }
+}

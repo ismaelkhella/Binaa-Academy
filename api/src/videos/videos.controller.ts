@@ -6,6 +6,12 @@ import { StudentJwtGuard } from '../auth/guards/jwt.guard';
 export class VideosController {
   constructor(private videosService: VideosService) {}
 
+  @Get(':id')
+  @UseGuards(StudentJwtGuard)
+  getLesson(@Param('id') id: string, @Req() req: { user: { sub: string } }) {
+    return this.videosService.getLessonDetails(id, req.user.sub);
+  }
+
   @Get(':id/stream')
   @UseGuards(StudentJwtGuard)
   getStream(@Param('id') id: string, @Req() req: { user: { sub: string } }) {

@@ -12,21 +12,20 @@ export default function LoginPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
-    setLoading(true);
+    loading || setLoading(true);
     try {
       const { token } = await api.login(email, password);
       localStorage.setItem('admin_token', token);
       navigate('/');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'فشل تسجيل الدخول');
-    } finally {
+      setError(err instanceof Error ? err.message : 'فشل تسجيل الدخول. يرجى التحقق من المدخلات.');
       setLoading(false);
     }
   }
 
   return (
     <div className="login-page">
-      <div className="card login-card">
+      <div className="login-card">
         <h1>أكاديمية بناء</h1>
         <p className="subtitle">لوحة التحكم — تسجيل الدخول</p>
         {error && <div className="error-msg">{error}</div>}
@@ -39,7 +38,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              dir="ltr"
+              placeholder="admin@bina.ps"
             />
           </div>
           <div className="form-group">
@@ -50,11 +49,11 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              dir="ltr"
+              placeholder="••••••••"
             />
           </div>
-          <button type="submit" className="btn-primary" style={{ width: '100%' }} disabled={loading}>
-            {loading ? 'جاري الدخول...' : 'دخول'}
+          <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '0.75rem', padding: '0.7rem' }} disabled={loading}>
+            {loading ? 'جاري تسجيل الدخول...' : 'دخول'}
           </button>
         </form>
       </div>

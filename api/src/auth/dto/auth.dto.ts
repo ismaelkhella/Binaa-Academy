@@ -1,19 +1,37 @@
-import { IsString, Matches, Length } from 'class-validator';
+import { IsString, Matches, Length, IsEnum, IsOptional } from 'class-validator';
+import { Grade, Branch } from '@prisma/client';
 
-export class RequestOtpDto {
+export class RegisterDto {
   @IsString()
   @Matches(/^05\d{8}$/, { message: 'رقم الهاتف يجب أن يكون فلسطينياً (05XXXXXXXX)' })
   phone!: string;
+
+  @IsString()
+  @Length(6, 20, { message: 'كلمة المرور يجب أن تكون بين 6 إلى 20 حرفاً' })
+  password!: string;
+
+  @IsString()
+  name!: string;
+
+  @IsEnum(Grade)
+  grade!: Grade;
+
+  @IsEnum(Branch)
+  branch!: Branch;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^05\d{8}$/, { message: 'رقم هاتف ولي الأمر يجب أن يكون فلسطينياً (05XXXXXXXX)' })
+  parentPhone?: string;
 }
 
-export class VerifyOtpDto {
+export class LoginDto {
   @IsString()
-  @Matches(/^05\d{8}$/)
+  @Matches(/^05\d{8}$/, { message: 'رقم الهاتف يجب أن يكون فلسطينياً (05XXXXXXXX)' })
   phone!: string;
 
   @IsString()
-  @Length(6, 6)
-  code!: string;
+  password!: string;
 }
 
 export class SetupProfileDto {

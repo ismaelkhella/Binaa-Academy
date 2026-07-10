@@ -1,22 +1,20 @@
 import { Controller, Post, Body, UseGuards, Req } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { RequestOtpDto, VerifyOtpDto, SetupProfileDto, AdminLoginDto } from './dto/auth.dto';
+import { RegisterDto, LoginDto, SetupProfileDto, AdminLoginDto } from './dto/auth.dto';
 import { StudentJwtGuard } from './guards/jwt.guard';
 
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  @Post('request-otp')
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
-  requestOtp(@Body() dto: RequestOtpDto) {
-    return this.authService.requestOtp(dto);
+  @Post('register')
+  register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
   }
 
-  @Post('verify-otp')
-  verifyOtp(@Body() dto: VerifyOtpDto) {
-    return this.authService.verifyOtp(dto);
+  @Post('login')
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
   }
 
   @Post('setup-profile')

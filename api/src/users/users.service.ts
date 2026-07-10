@@ -16,6 +16,11 @@ export class UsersService {
           orderBy: { createdAt: 'desc' },
           take: 1,
         },
+        teacher: {
+          include: {
+            subjects: true,
+          },
+        },
       },
     });
     if (!user) throw new NotFoundException('المستخدم غير موجود');
@@ -36,6 +41,19 @@ export class UsersService {
             endDate: activeSub.endDate,
             isActive: activeSub.isActive && !activeSub.isFrozen,
             videosPerSubject: activeSub.plan.videosPerSubject,
+          }
+        : null,
+      teacher: user.teacher
+        ? {
+            id: user.teacher.id,
+            bio: user.teacher.bio,
+            commissionRate: user.teacher.commissionRate,
+            subjects: user.teacher.subjects.map((s) => ({
+              id: s.id,
+              name: s.name,
+              grade: s.grade,
+              branch: s.branch,
+            })),
           }
         : null,
     };

@@ -8,7 +8,13 @@ import {
   Body,
   Query,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 import { AdminService } from './admin.service';
 import { AdminJwtGuard } from '../auth/guards/jwt.guard';
 import {
@@ -18,6 +24,8 @@ import {
   GrantSubscriptionDto,
   CreateVideoDto,
   UpdatePlanDto,
+  UpdateSubjectDto,
+  CreateTeacherDto,
 } from './dto/admin.dto';
 
 @Controller('admin')
@@ -80,6 +88,12 @@ export class AdminController {
     return this.adminService.listSubjects();
   }
 
+  @Put('subjects/:id')
+  updateSubject(@Param('id') id: string, @Body() dto: UpdateSubjectDto) {
+    return this.adminService.updateSubject(id, dto);
+  }
+
+
   @Get('plans')
   listPlans() {
     return this.adminService.listPlans();
@@ -91,7 +105,39 @@ export class AdminController {
   }
 
   @Get('teachers')
-  listTeachers() {
-    return this.adminService.listTeachers();
+  listTeachers(@Query() query: { search?: string; page?: string; limit?: string }) {
+    return this.adminService.listTeachers(query);
+  }
+
+  @Get('teachers/dashboard')
+  getTeachersDashboard() {
+    return this.adminService.getTeachersDashboard();
+  }
+
+  @Post('teachers')
+  createTeacher(@Body() dto: CreateTeacherDto) {
+    return this.adminService.createTeacher(dto);
+  }
+
+  @Post('upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: './uploads',
+        filename: (req, file, callback) => {
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = extname(file.originalname);
+          callback(null, `${uniqueSuffix}${ext}`);
+        },
+      }),
+    }),
+  )
+  uploadFile(@UploadedFile() file: any) {
+    if (!file) {
+      throw new BadRequestException('لم يتم تحديد أي ملف للرفع');
+    }
+    return {
+      url: `/uploads/${file.filename}`,
+    };
   }
 }

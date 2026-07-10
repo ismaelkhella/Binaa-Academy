@@ -7,9 +7,11 @@ function getToken() {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
@@ -47,10 +49,10 @@ export const api = {
   updateStudent: (id: string, data: Partial<Student>) =>
     request('/admin/students/' + id, { method: 'PUT', body: JSON.stringify(data) }),
 
-  grantSubscription: (id: string, planType: string, durationDays?: number) =>
+  grantSubscription: (id: string, planType: string, durationDays?: number, subjectIds?: string[]) =>
     request('/admin/students/' + id + '/subscription/grant', {
       method: 'POST',
-      body: JSON.stringify({ planType, durationDays }),
+      body: JSON.stringify({ planType, durationDays, subjectIds }),
     }),
 
   freezeSubscription: (id: string, freeze: boolean, reason?: string) =>
@@ -69,12 +71,35 @@ export const api = {
 
   getSubjects: () => request<Subject[]>('/admin/subjects'),
 
+  updateSubject: (id: string, data: { priceIls?: number; teacherId?: string | null }) =>
+    request<Subject>('/admin/subjects/' + id, { method: 'PUT', body: JSON.stringify(data) }),
+
   getPlans: () => request<Plan[]>('/admin/plans'),
 
   updatePlan: (id: string, data: Partial<Plan>) =>
     request('/admin/plans/' + id, { method: 'PUT', body: JSON.stringify(data) }),
 
-  getTeachers: () => request<Teacher[]>('/admin/teachers'),
+  getTeachers: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<{ teachers: Teacher[]; total: number; page: number; limit: number }>('/admin/teachers' + qs);
+  },
+
+  getTeachersDashboard: () => request<TeachersDashboardData>('/admin/teachers/dashboard'),
+
+  createTeacher: (data: { name: string; phone: string; bio?: string; avatarUrl?: string; commissionRate?: number; subjectId?: string }) =>
+    request<any>('/admin/teachers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  uploadFile: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<{ url: string }>('/admin/upload', {
+      method: 'POST',
+      body: formData,
+    });
+  },
 };
 
 export interface DashboardStats {
@@ -100,12 +125,51 @@ export interface Student {
 }
 
 export interface StudentDetail extends Student {
-  subscriptions: Array<{ plan: { nameAr: string; type: string }; endDate: string; isActive: boolean }>;
-  videoViews: Array<{ viewCount: number; lastViewed: string; video: { title: string } }>;
+  subscriptions: Array<{
+    id: string;
+    plan: { nameAr: string; type: string };
+    endDate: string;
+    isActive: boolean;
+    isFrozen: boolean;
+    subjects: Array<{ subject: { id: string; name: string } }>;
+  }>;
+  videoViews: Array<{
+    viewCount: number;
+    lastViewed: string;
+    completed: boolean;
+    video: { title: string; subject?: { name: string } };
+  }>;
+  quizResults?: Array<{
+    id: string;
+    score: number;
+    totalQuestions: number;
+    createdAt: string;
+    quiz: { title: string; subject?: { name: string } };
+  }>;
+  dailyGoals?: Array<{
+    id: string;
+    title: string;
+    completed: boolean;
+    dueDate: string;
+  }>;
+  studySessions?: Array<{
+    id: string;
+    durationMin: number;
+    date: string;
+  }>;
+}
+
+export interface VideoQuestion {
+  id: string;
+  videoId: string;
+  text: string;
+  options: string;
+  answer: string;
 }
 
 export interface Video {
   id: string;
+  subjectId: string;
   title: string;
   description: string | null;
   status: string;
@@ -114,6 +178,8 @@ export interface Video {
   subject: { name: string; grade: string; branch: string };
   teacher: { name: string } | null;
   _count: { videoViews: number };
+  pdfUrl?: string | null;
+  questions?: VideoQuestion[];
 }
 
 export interface CreateVideoInput {
@@ -122,6 +188,8 @@ export interface CreateVideoInput {
   description?: string;
   streamUrl?: string;
   status?: string;
+  pdfUrl?: string;
+  questions?: { text: string; options: string[]; answer: string }[];
 }
 
 export interface Subject {
@@ -129,7 +197,9 @@ export interface Subject {
   name: string;
   grade: string;
   branch: string;
-  teacher: { name: string } | null;
+  priceIls: number;
+  teacherId?: string | null;
+  teacher: { id: string; name: string } | null;
   _count: { videos: number };
 }
 
@@ -150,4 +220,32 @@ export interface Teacher {
   commissionRate: number;
   user: { phone: string };
   _count: { subjects: number; videos: number };
+  email?: string;
+  specialty?: string;
+  grade?: string;
+  lessons?: number;
+  rating?: number;
+  status?: string;
+  avatar?: string;
+}
+
+export interface TeachersDashboardData {
+  stats: {
+    totalTeachers: number;
+    activeClasses: number;
+    performanceRating: number;
+    contentHours: number;
+  };
+  applications: Array<{
+    id: string;
+    name: string;
+    title: string;
+    timeText: string;
+  }>;
+  topTeachers: Array<{
+    id: string;
+    name: string;
+    satisfactionRate: number;
+    avatar: string;
+  }>;
 }
