@@ -1,0 +1,734 @@
+{
+  "info": {
+    "name": "Bina Academy API",
+    "description": "مجموعة APIs منصة بناء أكاديمي — مرتبة حسب تسلسل الاستخدام في تطبيق الموبايل.\n\nBase URL: https://binaa-academy.replit.app/api\n\nالمتغيرات:\n• {{base_url}} = https://binaa-academy.replit.app/api\n• {{token}}    = JWT الطالب (يُعبَّأ تلقائياً بعد login)\n• {{admin_token}} = JWT الإدمن",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url",    "value": "https://binaa-academy.replit.app/api" },
+    { "key": "token",       "value": "" },
+    { "key": "admin_token", "value": "" }
+  ],
+  "item": [
+
+    {
+      "name": "1️⃣  المصادقة — Auth",
+      "item": [
+        {
+          "name": "تسجيل طالب جديد",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"0599222222\",\n  \"password\": \"student_password\",\n  \"name\": \"باسم سعيد\",\n  \"grade\": \"GRADE_11\",\n  \"branch\": \"SCIENTIFIC\",\n  \"parentPhone\": \"0599987654\"\n}"
+            },
+            "description": "يسجل طالب جديد ويعود بـ JWT صالح 30 يوم. يُنشئ اشتراك TRIAL تلقائياً.\n\n📌 احفظ token من الرد في {{token}}"
+          }
+        },
+        {
+          "name": "تسجيل دخول طالب  ←  يعبّئ {{token}}",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "if (r.token) pm.collectionVariables.set('token', r.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"0599222222\",\n  \"password\": \"student_password\"\n}"
+            },
+            "description": "✅ يعبّئ {{token}} تلقائياً في Postman بعد نجاح الطلب."
+          }
+        },
+        {
+          "name": "إكمال الملف الشخصي (صف + فرع)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/setup-profile",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"grade\": \"GRADE_12\",\n  \"branch\": \"SCIENTIFIC\"\n}"
+            },
+            "description": "يُستدعى مرة واحدة بعد التسجيل لتحديد الصف والفرع.\n\ngrade  : GRADE_11 | GRADE_12\nbranch : SCIENTIFIC | LITERARY\n\nإذا لم يكن للطالب اشتراك فعّال، يُنشئ TRIAL تلقائياً."
+          }
+        },
+        {
+          "name": "تسجيل دخول الإدمن  ←  يعبّئ {{admin_token}}",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r = pm.response.json();",
+                  "if (r.token) pm.collectionVariables.set('admin_token', r.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/admin/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@bina.ps\",\n  \"password\": \"CHANGE_ME\"\n}"
+            },
+            "description": "✅ يعبّئ {{admin_token}} تلقائياً.\n\nصالح 7 أيام. مختلف عن توكين الطالب — لا تستخدمه في endpoints الطالب والعكس صحيح."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "2️⃣  ملف الطالب — Profile",
+      "item": [
+        {
+          "name": "بيانات الطالب الحالي + الاشتراك",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/me",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "description": "يعود بالطالب + ملخص الاشتراك الفعّال:\nplanType, planName, endDate, videosPerSubject, isActive"
+          }
+        },
+        {
+          "name": "تحديث رقم هاتف ولي الأمر",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/me/parent-phone",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"parentPhone\": \"0599876543\"\n}"
+            },
+            "description": "رقم فلسطيني صالح: ^05\\d{8}$  (مثال: 0599876543)"
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "3️⃣  الرئيسية والأداء — Dashboard",
+      "item": [
+        {
+          "name": "شاشة الرئيسية (Home)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/dashboard",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "description": "بيانات شاشة الـ Home دفعة واحدة:\n• التقدم العام\n• آخر فيديو للمتابعة\n• أهداف اليوم (عدد + نسبة)\n• الاختبار اليومي\n• المواد المقترحة\n• قائمة مواد التسوق مع الأسعار"
+          }
+        },
+        {
+          "name": "تحليل أداء الطالب",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/performance",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "description": "مقاييس أداء الطالب:\n• نسبة تحقيق الأهداف الأسبوعية\n• المقارنة مع الأقران\n• ساعات الدراسة لكل يوم من الأسبوع\n• نسبة الإنجاز لكل مادة\n• آخر الاختبارات مع النتائج"
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "4️⃣  المواد الدراسية — Subjects",
+      "item": [
+        {
+          "name": "كل مواد الطالب (حسب صفه وفرعه)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/subjects",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "description": "يقرأ grade/branch من ملف الطالب تلقائياً.\n\nكل مادة تحمل:\n• id, name, teacherName\n• videoCount (المنشور فقط)\n• progressPercent\n• locked (بناء على الاشتراك)\n\n404 إذا لم يكمل الطالب ملفه الشخصي بعد."
+          }
+        },
+        {
+          "name": "موادي المشترك بها — المكتبة",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/subjects/my",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "description": "المواد المدفوعة فقط (اشتراك فعّال بها).\nمثالية لشاشة 'موادي' — تقلل البيانات المُحمَّلة."
+          }
+        },
+        {
+          "name": "فيديوهات مادة معيّنة",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/subjects/:id/videos",
+              "host": ["{{base_url}}"],
+              "path": ["subjects", ":id", "videos"],
+              "variable": [{ "key": "id", "value": "SUBJECT_ID_HERE", "description": "معرّف المادة" }]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "description": "⚠️ قاعدة القفل:\nأول N فيديو مفتوح (N = videosPerSubject من الخطة)، الباقي locked: true.\nالقفل بالترتيب وليس بالمشاهدات السابقة.\n\nمرتب: unitNumber → orderInUnit\n\nيعود أيضاً بـ quota (عدد الفيديوهات المتاحة للطالب)."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "5️⃣  الفيديوهات — Videos",
+      "item": [
+        {
+          "name": "تفاصيل الدرس",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/videos/:id",
+              "host": ["{{base_url}}"],
+              "path": ["videos", ":id"],
+              "variable": [{ "key": "id", "value": "VIDEO_ID_HERE" }]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "description": "يعود بـ:\n• بيانات الدرس (title, pdfUrl, teacherName, dailyQuizId)\n• chapters مع حالتها: COMPLETED | PLAYING | UNPLAYED | LOCKED\n• relatedVideos من نفس المادة\n• watermark (name + phone) للعلامة المائية"
+          }
+        },
+        {
+          "name": "رابط البث + العلامة المائية  ⚠️",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/videos/:id/stream",
+              "host": ["{{base_url}}"],
+              "path": ["videos", ":id", "stream"],
+              "variable": [{ "key": "id", "value": "VIDEO_ID_HERE" }]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "description": "⚠️ يتحقق من quota + maxViews في كل طلب.\n⚠️ اعرض watermark.name + watermark.phone على المشغّل لمنع إعادة المشاركة.\n\nيعود بـ:\n• streamUrl (رابط HLS)\n• watermark { name, phone }\n• playbackRates [0.75, 1, 1.25, 1.5, 2]\n• qualities [auto, 360p, 480p, 720p, 1080p]\n\n403 في حال:\n  - لا اشتراك فعّال\n  - الفيديو خارج حصة الخطة (locked)\n  - استُنفدت المشاهدات (maxViews = 3 افتراضياً)"
+          }
+        },
+        {
+          "name": "تسجيل مشاهدة",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/videos/:id/mark-viewed",
+              "host": ["{{base_url}}"],
+              "path": ["videos", ":id", "mark-viewed"],
+              "variable": [{ "key": "id", "value": "VIDEO_ID_HERE" }]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "description": "📌 استدعِه عند اكتمال المشاهدة أو عند إغلاق التطبيق.\n\nيعود بـ:\n• viewCount  (المشاهدات الحالية)\n• maxViews   (الحد المسموح)\n• triggerQuiz (اختبار قصير إن وُجد بعد هذا الفيديو)"
+          }
+        },
+        {
+          "name": "توكين التنزيل (أوفلاين)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/videos/:id/download-token",
+              "host": ["{{base_url}}"],
+              "path": ["videos", ":id", "download-token"],
+              "variable": [{ "key": "id", "value": "VIDEO_ID_HERE" }]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "description": "يولّد توكين تنزيل للمشاهدة بدون إنترنت.\n\n⚠️ احفظ expiresAt محلياً واطلب توكيناً جديداً قبل انتهائه.\nصالح 7 أيام افتراضياً (من DB).\n\n403 إذا الفيديو خارج الحصة أو لا اشتراك فعّال."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "6️⃣  الاشتراكات — Subscriptions",
+      "item": [
+        {
+          "name": "خطط الاشتراك المتاحة  (عام — بدون توكين)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/subscriptions/plans",
+            "description": "لا يحتاج توكين — مناسب لعرضها قبل تسجيل الدخول.\n\nيعرض الخطط الفعّالة مرتبةً تصاعدياً:\nTRIAL → MONTHLY → QUARTERLY → YEARLY\n\nكل خطة: id, type, nameAr, durationDays, priceIls, videosPerSubject, discountPercent"
+          }
+        },
+        {
+          "name": "اشتراكي الحالي",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/subscriptions/me",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "description": "آخر اشتراك فعّال مع بيانات الخطة الكاملة.\n\nالحقول المهمة:\n• isActive (true إذا isActive && !isFrozen && endDate > now)\n• isFrozen\n• endDate"
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "7️⃣  سلة التسوق — Cart",
+      "item": [
+        {
+          "name": "عرض السلة",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/cart",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "description": "يعود بـ:\n• items[] — المواد في السلة (name, priceIls, grade, branch, teacherName)\n• totalPriceIls — المجموع"
+          }
+        },
+        {
+          "name": "إضافة مادة للسلة",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/cart/add",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subjectId\": \"SUBJECT_ID_HERE\"\n}"
+            },
+            "description": "400 إذا:\n  - المادة موجودة في السلة مسبقاً\n  - لدى الطالب اشتراك مدفوع فعّال في هذه المادة\n\n404 إذا المادة غير موجودة."
+          }
+        },
+        {
+          "name": "حذف مادة من السلة",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/cart/remove/:subjectId",
+              "host": ["{{base_url}}"],
+              "path": ["cart", "remove", ":subjectId"],
+              "variable": [{ "key": "subjectId", "value": "SUBJECT_ID_HERE" }]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "إتمام الشراء — Checkout",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/cart/checkout",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "description": "يشتري كل المواد في السلة، يفعّل الاشتراك، ويفرغ السلة.\n\nيعود بـ:\n• subscriptionId\n• endDate\n• subjects[] — أسماء المواد المشتراة\n• totalPriceIls\n\n400 إذا السلة فارغة."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "8️⃣  الأهداف اليومية — Goals",
+      "item": [
+        {
+          "name": "قائمة الأهداف (اليوم + المؤرشفة)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/goals",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "description": "يعود بـ:\n• today[]    — أهداف اليوم الحالي مع حالة الإنجاز\n• archived[] — الأهداف السابقة المؤرشفة"
+          }
+        },
+        {
+          "name": "إضافة هدف جديد",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/goals",
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"مشاهدة فيديو الرياضيات — النهايات\"\n}"
+            }
+          }
+        },
+        {
+          "name": "تحديث هدف (إنجاز / تعديل عنوان)",
+          "request": {
+            "method": "PATCH",
+            "url": {
+              "raw": "{{base_url}}/goals/:id",
+              "host": ["{{base_url}}"],
+              "path": ["goals", ":id"],
+              "variable": [{ "key": "id", "value": "GOAL_ID_HERE" }]
+            },
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"completed\": true\n}"
+            },
+            "description": "يمكن تحديث completed و/أو title معاً أو كلٍّ على حدة."
+          }
+        },
+        {
+          "name": "حذف هدف",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/goals/:id",
+              "host": ["{{base_url}}"],
+              "path": ["goals", ":id"],
+              "variable": [{ "key": "id", "value": "GOAL_ID_HERE" }]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "9️⃣  لوحة الإدارة — Admin  ⚠️ admin_token",
+      "description": "⚠️ جميع الطلبات هنا تستخدم: Authorization: Bearer {{admin_token}}\nلا تستخدم توكين الطالب — سيرد بـ 401.",
+      "item": [
+
+        {
+          "name": "📊 الإحصائيات",
+          "item": [
+            {
+              "name": "إحصائيات لوحة الإدارة",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/admin/dashboard",
+                "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                "description": "KPIs شاملة:\n• students: total / active / trial\n• subscriptions: thisMonth / lastMonth\n• revenue: thisMonth (ILS)\n• content: totalVideos / completionRate\n• recentStudents (آخر 10)\n• topVideos (أعلى 5 مشاهدةً)"
+              }
+            },
+            {
+              "name": "إحصائيات المعلمين",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/admin/teachers/dashboard",
+                "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                "description": "إحصائيات + طلبات التوظيف الجديدة + قائمة المعلمين المتميزين."
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "👨‍🎓 الطلاب",
+          "item": [
+            {
+              "name": "قائمة الطلاب",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/admin/students",
+                  "host": ["{{base_url}}"],
+                  "path": ["admin", "students"],
+                  "query": [
+                    { "key": "grade",  "value": "GRADE_12",   "disabled": true, "description": "GRADE_11 | GRADE_12" },
+                    { "key": "branch", "value": "SCIENTIFIC",  "disabled": true, "description": "SCIENTIFIC | LITERARY" },
+                    { "key": "search", "value": "",            "disabled": true, "description": "يبحث في الاسم والهاتف" }
+                  ]
+                },
+                "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                "description": "⚠️ فلتر subscriptionStatus مُعرَّف لكن غير منفَّذ حالياً — الفلترة الفعلية على grade/branch/search فقط."
+              }
+            },
+            {
+              "name": "تفاصيل طالب",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/admin/students/:id",
+                  "host": ["{{base_url}}"],
+                  "path": ["admin", "students", ":id"],
+                  "variable": [{ "key": "id", "value": "STUDENT_ID" }]
+                },
+                "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                "description": "بيانات الطالب + كل اشتراكاته (مرتبة من الأحدث) + آخر 20 مشاهدة فيديو."
+              }
+            },
+            {
+              "name": "تعديل بيانات طالب",
+              "request": {
+                "method": "PUT",
+                "url": {
+                  "raw": "{{base_url}}/admin/students/:id",
+                  "host": ["{{base_url}}"],
+                  "path": ["admin", "students", ":id"],
+                  "variable": [{ "key": "id", "value": "STUDENT_ID" }]
+                },
+                "header": [
+                  { "key": "Content-Type",  "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"grade\": \"GRADE_12\",\n  \"branch\": \"SCIENTIFIC\",\n  \"parentPhone\": \"0599876543\",\n  \"isActive\": true\n}"
+                },
+                "description": "كل الحقول اختيارية: grade, branch, parentPhone, isActive."
+              }
+            },
+            {
+              "name": "منح اشتراك لطالب",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/admin/students/:id/subscription/grant",
+                  "host": ["{{base_url}}"],
+                  "path": ["admin", "students", ":id", "subscription", "grant"],
+                  "variable": [{ "key": "id", "value": "STUDENT_ID" }]
+                },
+                "header": [
+                  { "key": "Content-Type",  "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"planType\": \"MONTHLY\",\n  \"durationDays\": 30\n}"
+                },
+                "description": "planType: TRIAL | MONTHLY | QUARTERLY | YEARLY\ndurationDays: اختياري — يتجاوز مدة الخطة الافتراضية\nsubjectIds[]: اختياري — فارغ = كل المواد\n\nيلغي الاشتراك الحالي تلقائياً وينشئ جديداً."
+              }
+            },
+            {
+              "name": "تجميد / إلغاء تجميد اشتراك",
+              "request": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/admin/students/:id/subscription/freeze",
+                  "host": ["{{base_url}}"],
+                  "path": ["admin", "students", ":id", "subscription", "freeze"],
+                  "variable": [{ "key": "id", "value": "STUDENT_ID" }]
+                },
+                "header": [
+                  { "key": "Content-Type",  "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"freeze\": true,\n  \"reason\": \"سفر لمدة شهر\"\n}"
+                },
+                "description": "freeze: true = تجميد، false = إلغاء التجميد.\nreason: اختياري — يُحفظ في حقل notes."
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "📚 المواد",
+          "item": [
+            {
+              "name": "قائمة كل المواد",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/admin/subjects",
+                "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                "description": "كل المواد مرتبة بـ grade/branch/name مع اسم المعلم وعدّاد الفيديوهات."
+              }
+            },
+            {
+              "name": "إضافة مادة جديدة",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/admin/subjects",
+                "header": [
+                  { "key": "Content-Type",  "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"الفيزياء\",\n  \"grade\": \"GRADE_12\",\n  \"branch\": \"SCIENTIFIC\",\n  \"priceIls\": 120,\n  \"teacherId\": \"\"\n}"
+                },
+                "description": "grade  : GRADE_11 | GRADE_12\nbranch : SCIENTIFIC | LITERARY\nteacherId: اختياري"
+              }
+            },
+            {
+              "name": "تعديل مادة (السعر / المعلم)",
+              "request": {
+                "method": "PUT",
+                "url": {
+                  "raw": "{{base_url}}/admin/subjects/:id",
+                  "host": ["{{base_url}}"],
+                  "path": ["admin", "subjects", ":id"],
+                  "variable": [{ "key": "id", "value": "SUBJECT_ID" }]
+                },
+                "header": [
+                  { "key": "Content-Type",  "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"priceIls\": 150,\n  \"teacherId\": \"TEACHER_ID\"\n}"
+                }
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "🎬 الفيديوهات",
+          "item": [
+            {
+              "name": "قائمة كل الفيديوهات",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/admin/videos",
+                "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                "description": "كل الفيديوهات مع بيانات المادة والمعلم وعدّاد المشاهدات."
+              }
+            },
+            {
+              "name": "إضافة فيديو جديد",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/admin/videos",
+                "header": [
+                  { "key": "Content-Type",  "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"subjectId\": \"SUBJECT_ID\",\n  \"title\": \"الدرس الأول — النهايات\",\n  \"description\": \"مقدمة في مفهوم النهاية\",\n  \"streamUrl\": \"/uploads/video.mp4\",\n  \"pdfUrl\": \"/uploads/notes.pdf\",\n  \"status\": \"PUBLISHED\",\n  \"unitNumber\": 1,\n  \"orderInUnit\": 1,\n  \"durationSec\": 600,\n  \"teacherId\": \"TEACHER_ID\",\n  \"questions\": [\n    {\n      \"text\": \"ما هي وحدة القوة؟\",\n      \"options\": [\"نيوتن\", \"جول\", \"واط\", \"باسكال\"],\n      \"answer\": \"نيوتن\"\n    }\n  ]\n}"
+                },
+                "description": "status: DRAFT | PENDING_REVIEW | PUBLISHED\nالحقول الإلزامية: subjectId, title\nباقي الحقول اختيارية."
+              }
+            },
+            {
+              "name": "تعديل فيديو",
+              "request": {
+                "method": "PUT",
+                "url": {
+                  "raw": "{{base_url}}/admin/videos/:id",
+                  "host": ["{{base_url}}"],
+                  "path": ["admin", "videos", ":id"],
+                  "variable": [{ "key": "id", "value": "VIDEO_ID" }]
+                },
+                "header": [
+                  { "key": "Content-Type",  "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"PUBLISHED\",\n  \"title\": \"عنوان جديد\"\n}"
+                },
+                "description": "PATCH-style — كل الحقول اختيارية."
+              }
+            },
+            {
+              "name": "⚠️ حذف فيديو (نهائي)",
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "{{base_url}}/admin/videos/:id",
+                  "host": ["{{base_url}}"],
+                  "path": ["admin", "videos", ":id"],
+                  "variable": [{ "key": "id", "value": "VIDEO_ID" }]
+                },
+                "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                "description": "⚠️ حذف نهائي — يحذف الفيديو وكل المشاهدات المرتبطة (CASCADE).\nلا يمكن التراجع."
+              }
+            },
+            {
+              "name": "رفع ملف (صورة / فيديو / PDF)",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/admin/upload",
+                "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    { "key": "file", "type": "file", "src": "", "description": "JPG, PNG, PDF, ZIP, MP4, WEBM, MOV" }
+                  ]
+                },
+                "description": "يعود بـ: { \"url\": \"/uploads/filename.ext\" }\n\nاستخدم هذا الـ URL في:\n• streamUrl عند إنشاء/تعديل فيديو\n• pdfUrl\n• avatarUrl عند إضافة معلم"
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "👨‍🏫 المعلمون",
+          "item": [
+            {
+              "name": "قائمة المعلمين",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/admin/teachers",
+                  "host": ["{{base_url}}"],
+                  "path": ["admin", "teachers"],
+                  "query": [
+                    { "key": "search", "value": "",    "disabled": true, "description": "البحث بالاسم أو التخصص" },
+                    { "key": "page",   "value": "1",   "disabled": true },
+                    { "key": "limit",  "value": "10",  "disabled": true }
+                  ]
+                },
+                "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                "description": "يعود بـ: { teachers[], total, page, limit }"
+              }
+            },
+            {
+              "name": "إضافة معلم جديد",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/admin/teachers",
+                "header": [
+                  { "key": "Content-Type",  "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"أ. خالد عمر\",\n  \"phone\": \"0599123456\",\n  \"bio\": \"مدرس رياضيات ذو خبرة 10 سنوات\",\n  \"commissionRate\": 0.25,\n  \"subjectId\": \"SUBJECT_ID\"\n}"
+                },
+                "description": "الحقول الإلزامية: name, phone\ncommissionRate: 0 → 1 (0.25 = 25%)\nsubjectId: اختياري — يربط المعلم بمادة"
+              }
+            }
+          ]
+        },
+
+        {
+          "name": "💳 خطط الاشتراك",
+          "item": [
+            {
+              "name": "كل الخطط (بما فيها غير الفعّالة)",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/admin/plans",
+                "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                "description": "مرتبة بالمدة. يعرض حتى الخطط التي isActive=false."
+              }
+            },
+            {
+              "name": "تعديل خطة اشتراك",
+              "request": {
+                "method": "PUT",
+                "url": {
+                  "raw": "{{base_url}}/admin/plans/:id",
+                  "host": ["{{base_url}}"],
+                  "path": ["admin", "plans", ":id"],
+                  "variable": [{ "key": "id", "value": "PLAN_ID" }]
+                },
+                "header": [
+                  { "key": "Content-Type",  "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"priceIls\": 90,\n  \"videosPerSubject\": 15,\n  \"discountPercent\": 10,\n  \"isActive\": true\n}"
+                },
+                "description": "PATCH-style — كل الحقول اختيارية.\nالحقول القابلة للتعديل: priceIls, videosPerSubject, discountPercent, isActive"
+              }
+            }
+          ]
+        }
+
+      ]
+    }
+
+  ]
+}
