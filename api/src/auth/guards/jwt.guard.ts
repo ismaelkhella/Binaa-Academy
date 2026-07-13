@@ -38,9 +38,9 @@ export class AdminJwtGuard implements CanActivate {
     if (!token) throw new UnauthorizedException();
 
     try {
-      const payload = this.jwt.verify(token, {
-        secret: this.config.get('ADMIN_JWT_SECRET') || this.config.get('JWT_SECRET'),
-      });
+      const secret = this.config.get('ADMIN_JWT_SECRET');
+      if (!secret) throw new UnauthorizedException('ADMIN_JWT_SECRET not configured');
+      const payload = this.jwt.verify(token, { secret });
       if (payload.role !== 'ADMIN') throw new UnauthorizedException();
       request.admin = payload;
       return true;

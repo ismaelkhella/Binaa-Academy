@@ -145,7 +145,7 @@ export class AdminController {
           'video/quicktime',
           'video/x-msvideo',
           'video/x-matroska',
-          'application/octet-stream', // some browsers send this for video files
+          // Note: application/octet-stream intentionally excluded — too permissive
         ];
 
         const ext = extname(file.originalname);
