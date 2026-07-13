@@ -65,3 +65,8 @@ externalPort = 5000
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 120000
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["bash", "-c", "cd api && NODE_ENV=production node dist/src/main"]
+build = ["bash", "-c", "cd admin && npm install && npm run build && cd ../api && npm install && npm run build"]

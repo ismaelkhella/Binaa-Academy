@@ -34,9 +34,17 @@ async function bootstrap() {
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
+  // Serve uploaded media files
   app.useStaticAssets(join(process.cwd(), 'uploads'), {
     prefix: '/uploads/',
   });
+
+  // In production, serve the built admin panel and fall back to index.html for SPA routing
+  if (process.env.NODE_ENV === 'production') {
+    const adminDist = join(process.cwd(), '..', 'admin', 'dist');
+    app.useStaticAssets(adminDist);
+    app.setBaseViewsDir(adminDist);
+  }
 
   app.setGlobalPrefix('api');
   app.enableCors({
@@ -52,7 +60,7 @@ async function bootstrap() {
   );
 
   const port = process.env.PORT ?? 3000;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   console.log(`Bina Academy API running on http://localhost:${port}/api`);
 }
 
