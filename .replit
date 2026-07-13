@@ -4,3 +4,12 @@ expertMode = true
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+CORS_ORIGIN = "http://localhost:5000"
+JWT_EXPIRES_IN = "30d"
+NODE_ENV = "development"
+OTP_EXPIRES_MINUTES = "5"
+PORT = "3000"
