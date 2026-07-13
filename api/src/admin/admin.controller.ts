@@ -131,7 +131,7 @@ export class AdminController {
         },
       }),
       fileFilter: (req, file, callback) => {
-        const allowedExtensions = /\.(jpg|jpeg|png|gif|webp|pdf|zip)$/i;
+        const allowedExtensions = /\.(jpg|jpeg|png|gif|webp|pdf|zip|mp4|webm|mov|mkv|avi)$/i;
         const allowedMimetypes = [
           'image/jpeg',
           'image/png',
@@ -139,7 +139,13 @@ export class AdminController {
           'image/webp',
           'application/pdf',
           'application/zip',
-          'application/x-zip-compressed'
+          'application/x-zip-compressed',
+          'video/mp4',
+          'video/webm',
+          'video/quicktime',
+          'video/x-msvideo',
+          'video/x-matroska',
+          'application/octet-stream', // some browsers send this for video files
         ];
 
         const ext = extname(file.originalname);
@@ -151,14 +157,14 @@ export class AdminController {
         } else {
           callback(
             new BadRequestException(
-              'نوع الملف غير مسموح به. الأنواع المدعومة هي: JPG, PNG, GIF, WEBP, PDF, ZIP',
+              'نوع الملف غير مسموح به. الأنواع المدعومة هي: JPG, PNG, GIF, WEBP, PDF, ZIP, MP4, WEBM, MOV',
             ),
             false,
           );
         }
       },
       limits: {
-        fileSize: 20 * 1024 * 1024, // 20 MB limit
+        fileSize: 2 * 1024 * 1024 * 1024, // 2 GB limit for video files
       },
     }),
   )

@@ -180,15 +180,25 @@ async function main() {
           else title = `الدرس ${i}: موضوع إضافي في الفيزياء`;
         }
 
+        // Public Apple HLS demo streams — used as placeholder content until
+        // real lesson videos are uploaded through the admin panel.
+        const DEMO_HLS_STREAMS = [
+          'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8',
+          'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8',
+          'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8',
+          'https://devstreaming-cdn.apple.com/videos/streaming/examples/adv_dv_profile/master.m3u8',
+        ];
+        const demoStream = DEMO_HLS_STREAMS[(i - 1) % DEMO_HLS_STREAMS.length];
+
         const video = await prisma.video.create({
           data: {
             subjectId: subject.id,
             teacherId: sTeacherId,
             title,
             description: `شرح تفصيلي ومبسط لـ ${title}`,
-            streamUrl: `https://example.com/videos/${subject.id}-${i}.m3u8`,
+            streamUrl: demoStream,
             durationSec: (name === 'الفيزياء' && i === 3) ? 1710 : (1800 + i * 120),
-            pdfUrl: (name === 'الفيزياء' && i === 3) ? 'https://example.com/docs/newton-second-law.pdf' : null,
+            pdfUrl: (name === 'الفيزياء' && i === 3) ? 'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_4x3/bipbop_4x3_variant.m3u8' : null,
             unitNumber: 1,
             orderInUnit: i,
             status: 'PUBLISHED',
