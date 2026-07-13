@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "MqzqE3OcjJ-pT3XRmkK_m"
+uri = "file://api/docs/openapi.json"
+type = "unspecified"
+title = "Bina Academy API — OpenAPI JSON"
