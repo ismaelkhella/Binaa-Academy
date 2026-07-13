@@ -27,6 +27,8 @@ const EMPTY_FORM = {
   ],
 };
 
+const EMPTY_SUBJECT_FORM = { name: '', teacherId: '', priceIls: '' };
+
 export default function VideosPage() {
   const [videos, setVideos]     = useState<Video[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -37,6 +39,11 @@ export default function VideosPage() {
   const [level, setLevel]       = useState<Level>('root');
   const [gradeKey, setGradeKey] = useState<string | null>(null);
   const [subjectId, setSubjectId] = useState<string | null>(null);
+
+  // Add-subject modal
+  const [showSubjectModal, setShowSubjectModal] = useState(false);
+  const [subjectForm, setSubjectForm]           = useState(EMPTY_SUBJECT_FORM);
+  const [savingSubject, setSavingSubject]       = useState(false);
 
   // Add-video modal
   const [showModal, setShowModal]       = useState(false);
@@ -87,6 +94,28 @@ export default function VideosPage() {
     try { const r = await api.uploadFile(file); setForm((p) => ({ ...p, pdfUrl: r.url })); }
     catch { alert('فشل رفع الملف المرفق'); }
     finally { setUploadingAttachment(false); }
+  }
+
+  async function handleCreateSubject(e: FormEvent) {
+    e.preventDefault();
+    if (!activeGroup) return;
+    setSavingSubject(true);
+    try {
+      await api.createSubject({
+        name: subjectForm.name,
+        grade: activeGroup.grade,
+        branch: activeGroup.branch,
+        priceIls: subjectForm.priceIls ? Number(subjectForm.priceIls) : 0,
+        teacherId: subjectForm.teacherId || undefined,
+      });
+      setShowSubjectModal(false);
+      setSubjectForm(EMPTY_SUBJECT_FORM);
+      load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'حدث خطأ أثناء إنشاء المادة');
+    } finally {
+      setSavingSubject(false);
+    }
   }
 
   async function handleCreate(e: FormEvent) {
@@ -195,9 +224,25 @@ export default function VideosPage() {
           {/* ── LEVEL 1: Subject folders ──────────────────────────────────── */}
           {level === 'grade' && activeGroup && (
             <div>
+              {/* Action bar */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.25rem' }}>
+                <button
+                  className="btn-primary"
+                  style={{ padding: '0.5rem 1.1rem', fontSize: '0.85rem', borderRadius: '9px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  onClick={() => { setSubjectForm(EMPTY_SUBJECT_FORM); setShowSubjectModal(true); }}
+                >
+                  <span style={{ fontSize: '1rem' }}>📁</span> إضافة مادة جديدة
+                </button>
+              </div>
+
               {groupSubjects.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                  لا توجد مواد دراسية في هذا الفرع بعد.
+                <div style={{
+                  textAlign: 'center', padding: '3rem 1rem',
+                  border: '2px dashed #e2e8f0', borderRadius: '14px', color: 'var(--text-muted)',
+                }}>
+                  <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📂</div>
+                  <p style={{ fontWeight: 600, marginBottom: '0.4rem' }}>لا توجد مواد دراسية بعد</p>
+                  <p style={{ fontSize: '0.85rem' }}>اضغط "إضافة مادة جديدة" لإنشاء أول مادة في هذا الفرع.</p>
                 </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
@@ -331,6 +376,82 @@ export default function VideosPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* ── Add Subject Modal ───────────────────────────────────────────── */}
+      {showSubjectModal && activeGroup && (
+        <div style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, padding: '1rem',
+        }}>
+          <div className="card" style={{
+            width: '100%', maxWidth: '460px',
+            boxShadow: 'var(--shadow-lg)',
+            display: 'flex', flexDirection: 'column', gap: '1.25rem',
+          }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
+              <span style={{ marginLeft: '6px' }}>{activeGroup.icon}</span>
+              إضافة مادة جديدة — {activeGroup.label}
+            </h3>
+
+            <form onSubmit={handleCreateSubject} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="form-group">
+                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>اسم المادة</label>
+                <input
+                  value={subjectForm.name}
+                  onChange={(e) => setSubjectForm({ ...subjectForm, name: e.target.value })}
+                  required
+                  placeholder="مثال: الرياضيات، الفيزياء، اللغة العربية..."
+                />
+              </div>
+
+              <div className="form-group">
+                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>المعلم المسؤول</label>
+                <select
+                  value={subjectForm.teacherId}
+                  onChange={(e) => setSubjectForm({ ...subjectForm, teacherId: e.target.value })}
+                  style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.9rem', background: '#fff' }}
+                >
+                  <option value="">— بدون معلم (يمكن تعيينه لاحقاً) —</option>
+                  {(() => {
+                    // Collect unique teachers from existing subjects
+                    const seen = new Set<string>();
+                    return subjects
+                      .filter((s) => s.teacher && !seen.has(s.teacher.id) && seen.add(s.teacher.id))
+                      .map((s) => (
+                        <option key={s.teacher!.id} value={s.teacher!.id}>{s.teacher!.name}</option>
+                      ));
+                  })()}
+                </select>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+                  يمكن تغيير المعلم لاحقاً من صفحة إعدادات المواد.
+                </p>
+              </div>
+
+              <div className="form-group">
+                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>سعر الاشتراك (شيكل)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={subjectForm.priceIls}
+                  onChange={(e) => setSubjectForm({ ...subjectForm, priceIls: e.target.value })}
+                  placeholder="مثال: 150"
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
+                <button type="submit" className="btn-primary" style={{ flex: 1 }} disabled={savingSubject}>
+                  {savingSubject ? 'جاري الحفظ...' : 'إنشاء المادة'}
+                </button>
+                <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => { setShowSubjectModal(false); setSubjectForm(EMPTY_SUBJECT_FORM); }}>
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* ── Add Video Modal ─────────────────────────────────────────────── */}

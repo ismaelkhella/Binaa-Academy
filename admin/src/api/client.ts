@@ -71,6 +71,9 @@ export const api = {
 
   getSubjects: () => request<Subject[]>('/admin/subjects'),
 
+  createSubject: (data: { name: string; grade: string; branch: string; priceIls?: number; teacherId?: string }) =>
+    request<Subject>('/admin/subjects', { method: 'POST', body: JSON.stringify(data) }),
+
   updateSubject: (id: string, data: { priceIls?: number; teacherId?: string | null }) =>
     request<Subject>('/admin/subjects/' + id, { method: 'PUT', body: JSON.stringify(data) }),
 

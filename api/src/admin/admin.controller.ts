@@ -25,6 +25,7 @@ import {
   CreateVideoDto,
   UpdatePlanDto,
   UpdateSubjectDto,
+  CreateSubjectDto,
   CreateTeacherDto,
 } from './dto/admin.dto';
 
@@ -86,6 +87,11 @@ export class AdminController {
   @Get('subjects')
   listSubjects() {
     return this.adminService.listSubjects();
+  }
+
+  @Post('subjects')
+  createSubject(@Body() dto: CreateSubjectDto) {
+    return this.adminService.createSubject(dto);
   }
 
   @Put('subjects/:id')

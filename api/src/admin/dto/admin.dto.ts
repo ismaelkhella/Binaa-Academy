@@ -133,6 +133,25 @@ export class UpdateSubjectDto {
   teacherId?: string;
 }
 
+export class CreateSubjectDto {
+  @IsString()
+  name!: string;
+
+  @IsString()
+  grade!: string;
+
+  @IsString()
+  branch!: string;
+
+  @IsOptional()
+  @IsNumber()
+  priceIls?: number;
+
+  @IsOptional()
+  @IsString()
+  teacherId?: string;
+}
+
 export class CreateTeacherDto {
   @IsString()
   name!: string;

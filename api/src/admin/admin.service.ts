@@ -341,6 +341,19 @@ export class AdminService {
     });
   }
 
+  async createSubject(dto: { name: string; grade: string; branch: string; priceIls?: number; teacherId?: string }) {
+    return this.prisma.subject.create({
+      data: {
+        name: dto.name,
+        grade: dto.grade as any,
+        branch: dto.branch as any,
+        priceIls: dto.priceIls ?? 0,
+        teacherId: dto.teacherId || null,
+      },
+      include: { teacher: { select: { id: true, name: true } }, _count: { select: { videos: true } } },
+    });
+  }
+
   async updateSubject(id: string, dto: UpdateSubjectDto) {
     const subject = await this.prisma.subject.findUnique({ where: { id } });
     if (!subject) throw new NotFoundException('المادة غير موجودة');
