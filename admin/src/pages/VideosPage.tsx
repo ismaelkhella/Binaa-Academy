@@ -123,7 +123,7 @@ export default function VideosPage() {
       );
       if (addUploadCtrl.current === ctrl) setForm((p) => ({ ...p, streamUrl: r.url }));
     } catch (err) {
-      if ((err as Error)?.name !== 'AbortError') alert('فشل رفع ملف الفيديو');
+      if ((err as Error)?.name !== 'AbortError') alert((err as Error)?.message || 'فشل رفع ملف الفيديو');
     } finally {
       if (addUploadCtrl.current === ctrl) {
         addUploadCtrl.current = null;
@@ -198,7 +198,7 @@ export default function VideosPage() {
       );
       if (editUploadCtrl.current === ctrl) setEditForm((p) => ({ ...p, streamUrl: r.url }));
     } catch (err) {
-      if ((err as Error)?.name !== 'AbortError') alert('فشل رفع ملف الفيديو');
+      if ((err as Error)?.name !== 'AbortError') alert((err as Error)?.message || 'فشل رفع ملف الفيديو');
     } finally {
       if (editUploadCtrl.current === ctrl) {
         editUploadCtrl.current = null;
@@ -219,12 +219,17 @@ export default function VideosPage() {
   async function handleSaveEdit(e: FormEvent) {
     e.preventDefault();
     if (!editingVideo || savingEdit) return;
+    const streamUrl = editForm.streamUrl.trim();
+    if (streamUrl && !/^https?:\/\//i.test(streamUrl)) {
+      alert('رابط الفيديو غير صالح — يجب أن يبدأ بـ http أو https');
+      return;
+    }
     setSavingEdit(true);
     try {
       await api.updateVideo(editingVideo.id, {
         title:       editForm.title,
         description: editForm.description,
-        streamUrl:   editForm.streamUrl || undefined,
+        streamUrl:   streamUrl || undefined,
         pdfUrl:      editForm.pdfUrl    || undefined,
       });
       setEditingVideo(null);
@@ -245,6 +250,11 @@ export default function VideosPage() {
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     if (!subjectId || savingVideo) return;
+    const streamUrl = form.streamUrl.trim();
+    if (!/^https?:\/\//i.test(streamUrl)) {
+      alert('لا يمكن حفظ الدرس بدون فيديو.\nارفع ملف الفيديو وانتظر حتى يكتمل الرفع بنجاح، أو أدخل رابط بث يبدأ بـ http أو https');
+      return;
+    }
     setSavingVideo(true);
     try {
       const filteredQ = form.questions
@@ -254,7 +264,7 @@ export default function VideosPage() {
         subjectId,
         title: form.title,
         description: form.description,
-        streamUrl: form.streamUrl,
+        streamUrl,
         status: 'PUBLISHED',
         pdfUrl: form.pdfUrl || undefined,
         questions: filteredQ.length > 0 ? filteredQ : undefined,

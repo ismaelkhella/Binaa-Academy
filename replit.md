@@ -27,7 +27,8 @@ Two workflows run in parallel:
 - **Push schema changes**: `cd api && npx prisma db push`
 - **Re-seed**: `cd api && npx ts-node prisma/seed.ts` (⚠️ wipes data — dev only)
 - **History**: migrated from SQLite on 2026-07-17; pre-migration snapshot kept at `api/prisma/dev.db` + `dev.db.backup` (no longer used by the app)
-- Production DB is separate and persistent — publishing never overwrites production data (schema diffs are applied by Replit's publish flow)
+- Production DB is separate and persistent — publishing applies schema diffs only and never copies data by itself. The Publish UI has an optional "overwrite/copy data from development" choice the user can pick when prod needs the dev data (needed on 2026-07-17: prod was provisioned schema-only/empty)
+- ⚠️ The published (autoscale) site rejects request bodies over ~32 MB (413 at the ingress) — large video uploads cannot go through the API in production
 
 ## Admin Login
 
@@ -46,10 +47,10 @@ Two workflows run in parallel:
 
 ## Stack
 
-- **API**: NestJS 10, Prisma 6, SQLite, Passport JWT, class-validator
+- **API**: NestJS 10, Prisma 6, PostgreSQL (Replit), Passport JWT, class-validator
 - **Admin**: React 18, Vite 6, React Router v6, TypeScript
 
 ## User Preferences
 
 - Keep existing monorepo structure (`api/` + `admin/`)
-- Do not migrate to PostgreSQL unless explicitly requested
+- Never risk student data (views/subscriptions) during content changes — soft-delete only

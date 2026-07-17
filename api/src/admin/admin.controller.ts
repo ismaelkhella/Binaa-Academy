@@ -25,6 +25,7 @@ import {
   FreezeSubscriptionDto,
   GrantSubscriptionDto,
   CreateVideoDto,
+  UpdateVideoDto,
   UpdatePlanDto,
   UpdateSubjectDto,
   CreateSubjectDto,
@@ -77,7 +78,7 @@ export class AdminController {
   }
 
   @Put('videos/:id')
-  updateVideo(@Param('id') id: string, @Body() dto: Partial<CreateVideoDto>) {
+  updateVideo(@Param('id') id: string, @Body() dto: UpdateVideoDto) {
     return this.adminService.updateVideo(id, dto);
   }
 

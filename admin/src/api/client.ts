@@ -153,7 +153,11 @@ export const api = {
           try { resolve(JSON.parse(xhr.responseText)); }
           catch { reject(new Error('استجابة غير صالحة من الخادم')); }
         } else {
-          let msg = 'فشل الرفع';
+          // 413 comes from the hosting proxy on the published site (request size cap),
+          // usually with a non-JSON body — give a specific, actionable message.
+          let msg = xhr.status === 413
+            ? 'فشل الرفع: حجم الفيديو أكبر من الحد الذي يسمح به الخادم المنشور'
+            : 'فشل الرفع';
           try { msg = JSON.parse(xhr.responseText).message || msg; } catch { /* keep default */ }
           reject(new Error(msg));
         }

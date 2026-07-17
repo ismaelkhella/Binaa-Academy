@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsEnum, IsNumber, IsBoolean, Min, IsArray } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsNumber, IsBoolean, Min, IsArray, Matches, ValidateIf } from 'class-validator';
 import { Grade, Branch, PlanType, VideoStatus } from '@prisma/client';
 
 export class ListStudentsQuery {
@@ -72,8 +72,63 @@ export class CreateVideoDto {
   @IsString()
   description?: string;
 
+  // Required: a lesson without a playable video URL renders the site root
+  // (the admin panel page in production) inside the student's video player.
+  @IsString()
+  @Matches(/^https?:\/\/.+/, {
+    message: 'رابط الفيديو مطلوب — ارفع ملف الفيديو حتى يكتمل الرفع أو أدخل رابط بث صالحاً يبدأ بـ http',
+  })
+  streamUrl!: string;
+
+  @IsOptional()
+  @IsNumber()
+  durationSec?: number;
+
+  @IsOptional()
+  @IsNumber()
+  unitNumber?: number;
+
+  @IsOptional()
+  @IsNumber()
+  orderInUnit?: number;
+
+  @IsOptional()
+  @IsEnum(VideoStatus)
+  status?: VideoStatus;
+
   @IsOptional()
   @IsString()
+  teacherId?: string;
+
+  @IsOptional()
+  @IsString()
+  pdfUrl?: string;
+
+  @IsOptional()
+  @IsArray()
+  questions?: { text: string; options: string[]; answer: string }[];
+}
+
+export class UpdateVideoDto {
+  @IsOptional()
+  @IsString()
+  subjectId?: string;
+
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  // Optional on update, but when provided it must be a real URL —
+  // an empty, null, or relative value breaks the student video player.
+  // ValidateIf (not IsOptional) so that an explicit null is rejected too.
+  @ValidateIf((o) => o.streamUrl !== undefined)
+  @Matches(/^https?:\/\/.+/, {
+    message: 'رابط الفيديو غير صالح — يجب أن يبدأ بـ http أو https',
+  })
   streamUrl?: string;
 
   @IsOptional()
