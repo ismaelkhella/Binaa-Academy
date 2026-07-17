@@ -34,9 +34,13 @@ async function bootstrap() {
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // Serve uploaded media files
+  // Serve uploaded media files — available at both /uploads/ and /api/uploads/
+  // so that mobile clients using either the root URL or the /api base URL can access files.
   app.useStaticAssets(join(process.cwd(), 'uploads'), {
     prefix: '/uploads/',
+  });
+  app.useStaticAssets(join(process.cwd(), 'uploads'), {
+    prefix: '/api/uploads/',
   });
 
   // In production, serve the built admin panel and fall back to index.html for SPA routing

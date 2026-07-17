@@ -48,6 +48,7 @@ export default function VideosPage() {
   // Add-video modal
   const [showModal, setShowModal]       = useState(false);
   const [form, setForm]                 = useState(EMPTY_FORM);
+  const [savingVideo, setSavingVideo]   = useState(false);
   const [uploadingVideo, setUploadingVideo]           = useState(false);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
@@ -120,7 +121,8 @@ export default function VideosPage() {
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
-    if (!subjectId) return;
+    if (!subjectId || savingVideo) return;
+    setSavingVideo(true);
     try {
       const filteredQ = form.questions
         .filter((q) => q.text.trim() && q.options.some((o) => o.trim()) && q.answer)
@@ -139,6 +141,8 @@ export default function VideosPage() {
       load();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'حدث خطأ أثناء رفع الفيديو');
+    } finally {
+      setSavingVideo(false);
     }
   }
 
@@ -536,8 +540,10 @@ export default function VideosPage() {
               </div>
 
               <div style={{ display: 'flex', gap: '0.75rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
-                <button type="submit" className="btn-primary" style={{ flex: 1 }}>حفظ الدرس</button>
-                <button type="button" className="btn-secondary" style={{ flex: 1 }} onClick={() => { setShowModal(false); setForm(EMPTY_FORM); }}>إلغاء</button>
+                <button type="submit" className="btn-primary" style={{ flex: 1 }} disabled={savingVideo || uploadingVideo || uploadingAttachment}>
+                  {savingVideo ? 'جاري الحفظ...' : 'حفظ الدرس'}
+                </button>
+                <button type="button" className="btn-secondary" style={{ flex: 1 }} disabled={savingVideo} onClick={() => { setShowModal(false); setForm(EMPTY_FORM); }}>إلغاء</button>
               </div>
             </form>
           </div>
