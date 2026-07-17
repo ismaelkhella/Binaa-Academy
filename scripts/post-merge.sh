@@ -9,7 +9,8 @@ echo "==> Generating Prisma client..."
 npx prisma generate
 
 echo "==> Pushing schema to database..."
-npx prisma db push --accept-data-loss
+# No --accept-data-loss: fail loudly instead of silently dropping data
+npx prisma db push
 
 echo "==> Installing Admin dependencies..."
 cd ../admin

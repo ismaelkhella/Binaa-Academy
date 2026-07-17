@@ -22,10 +22,12 @@ Two workflows run in parallel:
 
 ## Database
 
-- **Engine**: SQLite (file: `api/prisma/dev.db`)
+- **Engine**: Replit PostgreSQL (`DATABASE_URL` env var — provided automatically in dev and production)
 - **ORM**: Prisma — schema at `api/prisma/schema.prisma`
 - **Push schema changes**: `cd api && npx prisma db push`
-- **Re-seed**: `cd api && npx ts-node prisma/seed.ts`
+- **Re-seed**: `cd api && npx ts-node prisma/seed.ts` (⚠️ wipes data — dev only)
+- **History**: migrated from SQLite on 2026-07-17; pre-migration snapshot kept at `api/prisma/dev.db` + `dev.db.backup` (no longer used by the app)
+- Production DB is separate and persistent — publishing never overwrites production data (schema diffs are applied by Replit's publish flow)
 
 ## Admin Login
 
