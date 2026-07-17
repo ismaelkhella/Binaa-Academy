@@ -109,7 +109,74 @@ export const api = {
       body: formData,
     });
   },
+
+  /** Upload with progress events (percent + speed) via XHR, since fetch has no upload progress. */
+  uploadFileWithProgress: (file: File, onProgress: (p: UploadProgress) => void, signal?: AbortSignal) => {
+    return new Promise<{ url: string }>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const makeAbortError = () => {
+        const e = new Error('تم إلغاء الرفع');
+        e.name = 'AbortError';
+        return e;
+      };
+
+      if (signal) {
+        if (signal.aborted) { reject(makeAbortError()); return; }
+        signal.addEventListener('abort', () => xhr.abort(), { once: true });
+      }
+
+      const startTime = Date.now();
+
+      xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable) return;
+        const elapsedSec = (Date.now() - startTime) / 1000;
+        const loadedMB = e.loaded / (1024 * 1024);
+        onProgress({
+          percent: Math.min(100, Math.round((e.loaded / e.total) * 100)),
+          loadedMB,
+          totalMB: e.total / (1024 * 1024),
+          speedMBps: elapsedSec > 0.2 ? loadedMB / elapsedSec : 0,
+        });
+      };
+
+      xhr.onload = () => {
+        if (xhr.status === 401) {
+          localStorage.removeItem('admin_token');
+          window.location.href = '/login';
+          reject(new Error('Unauthorized'));
+          return;
+        }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { resolve(JSON.parse(xhr.responseText)); }
+          catch { reject(new Error('استجابة غير صالحة من الخادم')); }
+        } else {
+          let msg = 'فشل الرفع';
+          try { msg = JSON.parse(xhr.responseText).message || msg; } catch { /* keep default */ }
+          reject(new Error(msg));
+        }
+      };
+      xhr.onerror = () => reject(new Error('خطأ في الاتصال بالخادم'));
+      xhr.onabort = () => reject(makeAbortError());
+      // No xhr.timeout on purpose: it caps TOTAL duration and would kill legitimate
+      // large video uploads. Users can cancel via the AbortSignal instead.
+
+      xhr.open('POST', `${API_BASE}/admin/upload`);
+      const token = getToken();
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.send(formData);
+    });
+  },
 };
+
+export interface UploadProgress {
+  percent: number;   // 0–100
+  loadedMB: number;  // megabytes uploaded so far
+  totalMB: number;   // total megabytes
+  speedMBps: number; // average upload speed in MB/s
+}
 
 export interface DashboardStats {
   students: { total: number; active: number; trial: number };

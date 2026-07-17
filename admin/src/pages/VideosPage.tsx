@@ -1,5 +1,5 @@
-import { useEffect, useState, FormEvent } from 'react';
-import { api, Video, Subject } from '../api/client';
+import { useEffect, useRef, useState, FormEvent } from 'react';
+import { api, Video, Subject, UploadProgress } from '../api/client';
 import { formatDuration } from '../utils/labels';
 
 type Level = 'root' | 'grade' | 'subject';
@@ -50,6 +50,7 @@ export default function VideosPage() {
   const [form, setForm]                 = useState(EMPTY_FORM);
   const [savingVideo, setSavingVideo]   = useState(false);
   const [uploadingVideo, setUploadingVideo]           = useState(false);
+  const [videoProgress, setVideoProgress]             = useState<UploadProgress | null>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
   // Edit-video modal
@@ -57,7 +58,12 @@ export default function VideosPage() {
   const [editForm, setEditForm]         = useState({ title: '', description: '', streamUrl: '', pdfUrl: '' });
   const [savingEdit, setSavingEdit]     = useState(false);
   const [uploadingEditVideo, setUploadingEditVideo]           = useState(false);
+  const [editVideoProgress, setEditVideoProgress]             = useState<UploadProgress | null>(null);
   const [uploadingEditAttachment, setUploadingEditAttachment] = useState(false);
+
+  // Abort controllers so closing a modal / unmounting cancels in-flight video uploads
+  const addUploadCtrl  = useRef<AbortController | null>(null);
+  const editUploadCtrl = useRef<AbortController | null>(null);
 
   function load() {
     setLoading(true);
@@ -67,6 +73,12 @@ export default function VideosPage() {
       .finally(() => setLoading(false));
   }
   useEffect(() => { load(); }, []);
+
+  // Abort any in-flight uploads if the page unmounts
+  useEffect(() => () => {
+    addUploadCtrl.current?.abort();
+    editUploadCtrl.current?.abort();
+  }, []);
 
   // ── Derived data ──────────────────────────────────────────────────────────
   const activeGroup   = GRADE_GROUPS.find((g) => g.key === gradeKey) ?? null;
@@ -88,12 +100,37 @@ export default function VideosPage() {
   }
 
   // ── Upload helpers ────────────────────────────────────────────────────────
+  function cancelAddVideoUpload() {
+    addUploadCtrl.current?.abort();
+    addUploadCtrl.current = null;
+    setUploadingVideo(false);
+    setVideoProgress(null);
+  }
+
   async function handleVideoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
+    e.target.value = ''; // allow re-selecting the same file after cancel/failure
+    addUploadCtrl.current?.abort();
+    const ctrl = new AbortController();
+    addUploadCtrl.current = ctrl;
     setUploadingVideo(true);
-    try { const r = await api.uploadFile(file); setForm((p) => ({ ...p, streamUrl: r.url })); }
-    catch { alert('فشل رفع ملف الفيديو'); }
-    finally { setUploadingVideo(false); }
+    setVideoProgress(null);
+    try {
+      const r = await api.uploadFileWithProgress(
+        file,
+        (p) => { if (addUploadCtrl.current === ctrl) setVideoProgress(p); },
+        ctrl.signal,
+      );
+      if (addUploadCtrl.current === ctrl) setForm((p) => ({ ...p, streamUrl: r.url }));
+    } catch (err) {
+      if ((err as Error)?.name !== 'AbortError') alert('فشل رفع ملف الفيديو');
+    } finally {
+      if (addUploadCtrl.current === ctrl) {
+        addUploadCtrl.current = null;
+        setUploadingVideo(false);
+        setVideoProgress(null);
+      }
+    }
   }
 
   async function handleAttachmentUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -128,6 +165,7 @@ export default function VideosPage() {
 
   // ── Edit-video helpers ────────────────────────────────────────────────────
   function openEditModal(v: Video) {
+    cancelEditVideoUpload(); // don't let a previous video's upload write into this one
     setEditingVideo(v);
     setEditForm({
       title:       v.title,
@@ -137,12 +175,37 @@ export default function VideosPage() {
     });
   }
 
+  function cancelEditVideoUpload() {
+    editUploadCtrl.current?.abort();
+    editUploadCtrl.current = null;
+    setUploadingEditVideo(false);
+    setEditVideoProgress(null);
+  }
+
   async function handleEditVideoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return;
+    e.target.value = ''; // allow re-selecting the same file after cancel/failure
+    editUploadCtrl.current?.abort();
+    const ctrl = new AbortController();
+    editUploadCtrl.current = ctrl;
     setUploadingEditVideo(true);
-    try { const r = await api.uploadFile(file); setEditForm((p) => ({ ...p, streamUrl: r.url })); }
-    catch { alert('فشل رفع ملف الفيديو'); }
-    finally { setUploadingEditVideo(false); }
+    setEditVideoProgress(null);
+    try {
+      const r = await api.uploadFileWithProgress(
+        file,
+        (p) => { if (editUploadCtrl.current === ctrl) setEditVideoProgress(p); },
+        ctrl.signal,
+      );
+      if (editUploadCtrl.current === ctrl) setEditForm((p) => ({ ...p, streamUrl: r.url }));
+    } catch (err) {
+      if ((err as Error)?.name !== 'AbortError') alert('فشل رفع ملف الفيديو');
+    } finally {
+      if (editUploadCtrl.current === ctrl) {
+        editUploadCtrl.current = null;
+        setUploadingEditVideo(false);
+        setEditVideoProgress(null);
+      }
+    }
   }
 
   async function handleEditAttachmentUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -204,12 +267,6 @@ export default function VideosPage() {
     } finally {
       setSavingVideo(false);
     }
-  }
-
-  async function handleDelete(id: string) {
-    if (!confirm('هل أنت متأكد من حذف هذا الفيديو؟')) return;
-    try { await api.deleteVideo(id); load(); }
-    catch (err) { alert(err instanceof Error ? err.message : 'حدث خطأ أثناء الحذف'); }
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -567,8 +624,8 @@ export default function VideosPage() {
 
               <div className="form-group">
                 <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>رفع ملف الفيديو</label>
-                <input type="file" accept="video/*" onChange={handleVideoUpload} style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }} />
-                {uploadingVideo && <span style={{ fontSize: '0.75rem', color: 'var(--accent)', display: 'block' }}>جاري رفع الفيديو...</span>}
+                <input type="file" accept="video/*" onChange={handleVideoUpload} disabled={uploadingVideo} style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }} />
+                {uploadingVideo && <UploadProgressBar progress={videoProgress} onCancel={cancelAddVideoUpload} />}
                 <label style={{ display: 'block', margin: '0.5rem 0 0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>أو رابط البث (HLS)</label>
                 <input value={form.streamUrl} onChange={(e) => setForm({ ...form, streamUrl: e.target.value })} placeholder="https://..." />
                 {form.streamUrl && (
@@ -624,7 +681,7 @@ export default function VideosPage() {
                 <button type="submit" className="btn-primary" style={{ flex: 1 }} disabled={savingVideo || uploadingVideo || uploadingAttachment}>
                   {savingVideo ? 'جاري الحفظ...' : 'حفظ الدرس'}
                 </button>
-                <button type="button" className="btn-secondary" style={{ flex: 1 }} disabled={savingVideo} onClick={() => { setShowModal(false); setForm(EMPTY_FORM); }}>إلغاء</button>
+                <button type="button" className="btn-secondary" style={{ flex: 1 }} disabled={savingVideo} onClick={() => { cancelAddVideoUpload(); setShowModal(false); setForm(EMPTY_FORM); }}>إلغاء</button>
               </div>
             </form>
           </div>
@@ -664,8 +721,8 @@ export default function VideosPage() {
 
               <div className="form-group">
                 <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>فيديو جديد (اختياري)</label>
-                <input type="file" accept="video/*" onChange={handleEditVideoUpload} style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }} />
-                {uploadingEditVideo && <span style={{ fontSize: '0.75rem', color: 'var(--accent)', display: 'block' }}>جاري رفع الفيديو...</span>}
+                <input type="file" accept="video/*" onChange={handleEditVideoUpload} disabled={uploadingEditVideo} style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }} />
+                {uploadingEditVideo && <UploadProgressBar progress={editVideoProgress} onCancel={cancelEditVideoUpload} />}
                 <label style={{ display: 'block', margin: '0.5rem 0 0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>أو رابط البث (HLS)</label>
                 <input value={editForm.streamUrl} onChange={(e) => setEditForm({ ...editForm, streamUrl: e.target.value })} placeholder="https://..." />
                 {editForm.streamUrl && (
@@ -690,13 +747,54 @@ export default function VideosPage() {
                 <button type="submit" className="btn-primary" style={{ flex: 1 }} disabled={savingEdit || uploadingEditVideo || uploadingEditAttachment}>
                   {savingEdit ? 'جاري الحفظ...' : 'حفظ التعديلات'}
                 </button>
-                <button type="button" className="btn-secondary" style={{ flex: 1 }} disabled={savingEdit} onClick={() => setEditingVideo(null)}>إلغاء</button>
+                <button type="button" className="btn-secondary" style={{ flex: 1 }} disabled={savingEdit} onClick={() => { cancelEditVideoUpload(); setEditingVideo(null); }}>إلغاء</button>
               </div>
             </form>
           </div>
         </div>
       )}
     </>
+  );
+}
+
+// Upload progress bar: percentage + uploaded MB + average speed + cancel
+function UploadProgressBar({ progress, onCancel }: { progress: UploadProgress | null; onCancel?: () => void }) {
+  const pct = progress?.percent ?? 0;
+  return (
+    <div style={{ margin: '0.25rem 0 0.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', marginBottom: '0.3rem', gap: '0.5rem' }}>
+        <span style={{ color: 'var(--accent)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.6rem' }}>
+          {progress ? `${pct}%` : 'جاري التحضير...'}
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600, padding: 0 }}
+            >
+              ✕ إلغاء الرفع
+            </button>
+          )}
+        </span>
+        {progress && (
+          <span style={{ color: '#64748b', direction: 'ltr' }}>
+            {progress.loadedMB.toFixed(1)} / {progress.totalMB.toFixed(1)} MB
+            {progress.speedMBps > 0 && ` — ${progress.speedMBps.toFixed(2)} MB/s`}
+          </span>
+        )}
+      </div>
+      <div style={{ height: '8px', background: '#e2e8f0', borderRadius: '999px', overflow: 'hidden' }}>
+        <div style={{
+          height: '100%', width: `${pct}%`,
+          background: 'linear-gradient(90deg, #2563eb, #60a5fa)',
+          borderRadius: '999px', transition: 'width 0.2s ease',
+        }} />
+      </div>
+      {progress && pct >= 100 && (
+        <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', marginTop: '0.25rem' }}>
+          جاري معالجة الملف على الخادم...
+        </span>
+      )}
+    </div>
   );
 }
 
