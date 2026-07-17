@@ -52,6 +52,13 @@ export default function VideosPage() {
   const [uploadingVideo, setUploadingVideo]           = useState(false);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
+  // Edit-video modal
+  const [editingVideo, setEditingVideo] = useState<Video | null>(null);
+  const [editForm, setEditForm]         = useState({ title: '', description: '', streamUrl: '', pdfUrl: '' });
+  const [savingEdit, setSavingEdit]     = useState(false);
+  const [uploadingEditVideo, setUploadingEditVideo]           = useState(false);
+  const [uploadingEditAttachment, setUploadingEditAttachment] = useState(false);
+
   function load() {
     setLoading(true);
     Promise.all([api.getVideos(), api.getSubjects()])
@@ -117,6 +124,59 @@ export default function VideosPage() {
     } finally {
       setSavingSubject(false);
     }
+  }
+
+  // ── Edit-video helpers ────────────────────────────────────────────────────
+  function openEditModal(v: Video) {
+    setEditingVideo(v);
+    setEditForm({
+      title:       v.title,
+      description: v.description ?? '',
+      streamUrl:   (v as any).streamUrl ?? '',
+      pdfUrl:      v.pdfUrl ?? '',
+    });
+  }
+
+  async function handleEditVideoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return;
+    setUploadingEditVideo(true);
+    try { const r = await api.uploadFile(file); setEditForm((p) => ({ ...p, streamUrl: r.url })); }
+    catch { alert('فشل رفع ملف الفيديو'); }
+    finally { setUploadingEditVideo(false); }
+  }
+
+  async function handleEditAttachmentUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return;
+    setUploadingEditAttachment(true);
+    try { const r = await api.uploadFile(file); setEditForm((p) => ({ ...p, pdfUrl: r.url })); }
+    catch { alert('فشل رفع الملف المرفق'); }
+    finally { setUploadingEditAttachment(false); }
+  }
+
+  async function handleSaveEdit(e: FormEvent) {
+    e.preventDefault();
+    if (!editingVideo || savingEdit) return;
+    setSavingEdit(true);
+    try {
+      await api.updateVideo(editingVideo.id, {
+        title:       editForm.title,
+        description: editForm.description,
+        streamUrl:   editForm.streamUrl || undefined,
+        pdfUrl:      editForm.pdfUrl    || undefined,
+      });
+      setEditingVideo(null);
+      load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'حدث خطأ أثناء التعديل');
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function handleArchive(id: string) {
+    if (!confirm('إخفاء هذا الدرس عن الطلاب؟ يمكنك إعادة نشره لاحقاً.')) return;
+    try { await api.archiveVideo(id); load(); }
+    catch (err) { alert(err instanceof Error ? err.message : 'حدث خطأ'); }
   }
 
   async function handleCreate(e: FormEvent) {
@@ -365,14 +425,33 @@ export default function VideosPage() {
                         {v.status === 'PUBLISHED' ? 'منشور' : 'مسودة'}
                       </span>
 
-                      {/* Delete */}
+                      {/* Edit */}
                       <button
-                        className="btn-danger"
+                        className="btn-secondary"
                         style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', borderRadius: '7px', flexShrink: 0 }}
-                        onClick={() => handleDelete(v.id)}
+                        onClick={() => openEditModal(v)}
                       >
-                        حذف
+                        ✏️ تعديل
                       </button>
+
+                      {/* Archive (soft-delete — hides from students, keeps watch history) */}
+                      {v.status === 'PUBLISHED' ? (
+                        <button
+                          className="btn-danger"
+                          style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', borderRadius: '7px', flexShrink: 0 }}
+                          onClick={() => handleArchive(v.id)}
+                        >
+                          إخفاء
+                        </button>
+                      ) : (
+                        <button
+                          className="btn-primary"
+                          style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', borderRadius: '7px', flexShrink: 0 }}
+                          onClick={async () => { await api.updateVideo(v.id, { status: 'PUBLISHED' }); load(); }}
+                        >
+                          نشر
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -492,8 +571,10 @@ export default function VideosPage() {
                 {uploadingVideo && <span style={{ fontSize: '0.75rem', color: 'var(--accent)', display: 'block' }}>جاري رفع الفيديو...</span>}
                 <label style={{ display: 'block', margin: '0.5rem 0 0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>أو رابط البث (HLS)</label>
                 <input value={form.streamUrl} onChange={(e) => setForm({ ...form, streamUrl: e.target.value })} placeholder="https://..." />
-                {form.streamUrl?.startsWith('/uploads') && (
-                  <span style={{ fontSize: '0.75rem', color: '#047857' }}>✅ تم رفع الفيديو: {form.streamUrl.split('/').pop()}</span>
+                {form.streamUrl && (
+                  <span style={{ fontSize: '0.75rem', color: '#047857', display: 'block', marginTop: '0.25rem' }}>
+                    ✅ {form.streamUrl.includes('/uploads/') ? `ملف مرفوع: ${form.streamUrl.split('/').pop()}` : `رابط: ${form.streamUrl}`}
+                  </span>
                 )}
               </div>
 
@@ -544,6 +625,72 @@ export default function VideosPage() {
                   {savingVideo ? 'جاري الحفظ...' : 'حفظ الدرس'}
                 </button>
                 <button type="button" className="btn-secondary" style={{ flex: 1 }} disabled={savingVideo} onClick={() => { setShowModal(false); setForm(EMPTY_FORM); }}>إلغاء</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Video Modal ─────────────────────────────────────────────── */}
+      {editingVideo && (
+        <div style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, padding: '1rem',
+        }}>
+          <div className="card" style={{
+            width: '100%', maxWidth: '500px', maxHeight: '90vh',
+            overflowY: 'auto', boxShadow: 'var(--shadow-lg)',
+            display: 'flex', flexDirection: 'column', gap: '1.25rem',
+          }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
+              ✏️ تعديل الدرس
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '-0.75rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '0.5rem 0.75rem' }}>
+              🛡️ التعديل يؤثر فقط على بيانات الدرس ولا يمس سجلات مشاهدات الطلاب.
+            </p>
+
+            <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="form-group">
+                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>عنوان الدرس</label>
+                <input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} required />
+              </div>
+
+              <div className="form-group">
+                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>الوصف</label>
+                <textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} rows={3} />
+              </div>
+
+              <div className="form-group">
+                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>فيديو جديد (اختياري)</label>
+                <input type="file" accept="video/*" onChange={handleEditVideoUpload} style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }} />
+                {uploadingEditVideo && <span style={{ fontSize: '0.75rem', color: 'var(--accent)', display: 'block' }}>جاري رفع الفيديو...</span>}
+                <label style={{ display: 'block', margin: '0.5rem 0 0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>أو رابط البث (HLS)</label>
+                <input value={editForm.streamUrl} onChange={(e) => setEditForm({ ...editForm, streamUrl: e.target.value })} placeholder="https://..." />
+                {editForm.streamUrl && (
+                  <span style={{ fontSize: '0.75rem', color: '#047857', display: 'block', marginTop: '0.25rem' }}>
+                    ✅ {editForm.streamUrl.includes('/uploads/') ? `ملف: ${editForm.streamUrl.split('/').pop()}` : `رابط: ${editForm.streamUrl}`}
+                  </span>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>ملف مرفق جديد (اختياري)</label>
+                <input type="file" onChange={handleEditAttachmentUpload} style={{ fontSize: '0.85rem' }} />
+                {uploadingEditAttachment && <span style={{ fontSize: '0.75rem', color: 'var(--accent)', display: 'block' }}>جاري الرفع...</span>}
+                {editForm.pdfUrl && (
+                  <a href={editForm.pdfUrl} target="_blank" rel="noreferrer" style={{ fontSize: '0.75rem', color: '#047857', display: 'block', marginTop: '0.25rem' }}>
+                    ✅ {editForm.pdfUrl.split('/').pop()}
+                  </a>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
+                <button type="submit" className="btn-primary" style={{ flex: 1 }} disabled={savingEdit || uploadingEditVideo || uploadingEditAttachment}>
+                  {savingEdit ? 'جاري الحفظ...' : 'حفظ التعديلات'}
+                </button>
+                <button type="button" className="btn-secondary" style={{ flex: 1 }} disabled={savingEdit} onClick={() => setEditingVideo(null)}>إلغاء</button>
               </div>
             </form>
           </div>

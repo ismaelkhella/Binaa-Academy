@@ -331,7 +331,14 @@ export class AdminService {
   }
 
   async deleteVideo(id: string) {
-    return this.prisma.video.delete({ where: { id } });
+    // Soft-delete: set status to DRAFT instead of hard-deleting.
+    // Hard deletion cascades to VideoView records (student watch history),
+    // permanently erasing student data. Setting DRAFT hides the video from
+    // students (only PUBLISHED videos are visible) while preserving history.
+    return this.prisma.video.update({
+      where: { id },
+      data: { status: 'DRAFT' },
+    });
   }
 
   async listSubjects() {

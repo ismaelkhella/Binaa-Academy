@@ -7,11 +7,13 @@ import {
   Param,
   Body,
   Query,
+  Req,
   UseGuards,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
@@ -174,12 +176,15 @@ export class AdminController {
       },
     }),
   )
-  uploadFile(@UploadedFile() file: any) {
+  uploadFile(@UploadedFile() file: any, @Req() req: Request) {
     if (!file) {
       throw new BadRequestException('لم يتم تحديد أي ملف للرفع');
     }
-    return {
-      url: `/uploads/${file.filename}`,
-    };
+    // Return an absolute URL so mobile clients can use it directly
+    // regardless of whether they use the root domain or the /api base.
+    const protocol = req.get('x-forwarded-proto') ?? req.protocol ?? 'https';
+    const host = req.get('host') ?? '';
+    const url = `${protocol}://${host}/uploads/${file.filename}`;
+    return { url };
   }
 }

@@ -66,6 +66,12 @@ export const api = {
   createVideo: (data: CreateVideoInput) =>
     request('/admin/videos', { method: 'POST', body: JSON.stringify(data) }),
 
+  updateVideo: (id: string, data: Partial<CreateVideoInput>) =>
+    request('/admin/videos/' + id, { method: 'PUT', body: JSON.stringify(data) }),
+
+  archiveVideo: (id: string) =>
+    request('/admin/videos/' + id, { method: 'PUT', body: JSON.stringify({ status: 'DRAFT' }) }),
+
   deleteVideo: (id: string) =>
     request('/admin/videos/' + id, { method: 'DELETE' }),
 
