@@ -1,8 +1,8 @@
 import { Controller, Post, Body, UseGuards, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto, SetupProfileDto, AdminLoginDto } from './dto/auth.dto';
-import { StudentJwtGuard } from './guards/jwt.guard';
+import { RegisterDto, LoginDto, SetupProfileDto, AdminLoginDto, AdminChangePasswordDto } from './dto/auth.dto';
+import { StudentJwtGuard, AdminJwtGuard } from './guards/jwt.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -33,5 +33,17 @@ export class AuthController {
   @Post('admin/login')
   adminLogin(@Body() dto: AdminLoginDto) {
     return this.authService.adminLogin(dto);
+  }
+
+  // Admin changes their own password — requires the current password.
+  // AdminJwtGuard attaches the payload to req.admin (not req.user).
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @Post('admin/change-password')
+  @UseGuards(AdminJwtGuard)
+  adminChangePassword(
+    @Req() req: { admin: { sub: string } },
+    @Body() dto: AdminChangePasswordDto,
+  ) {
+    return this.authService.adminChangePassword(req.admin.sub, dto);
   }
 }

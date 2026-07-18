@@ -93,6 +93,16 @@ export class CartService {
   }
 
   async checkout(userId: string) {
+    // The wallet checkout below is a SIMULATION (no real payment is taken).
+    // It must never run in production — it would grant paid subscriptions for
+    // free. Admins grant subscriptions manually from the admin panel until a
+    // real payment gateway is integrated.
+    if (process.env.NODE_ENV === 'production') {
+      throw new BadRequestException(
+        'الدفع الإلكتروني غير متاح حالياً — يرجى التواصل مع إدارة الأكاديمية لتفعيل الاشتراك',
+      );
+    }
+
     // 1. Get all cart items
     const cartItems = await this.prisma.cartItem.findMany({
       where: { userId },

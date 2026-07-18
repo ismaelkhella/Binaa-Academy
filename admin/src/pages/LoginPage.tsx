@@ -4,18 +4,19 @@ import { api } from '../api/client';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('admin@bina.ps');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
-    loading || setLoading(true);
+    setLoading(true);
     try {
-      const { token } = await api.login(email, password);
+      const { token, admin } = await api.login(email, password);
       localStorage.setItem('admin_token', token);
+      if (admin?.name) localStorage.setItem('admin_name', admin.name);
       navigate('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل تسجيل الدخول. يرجى التحقق من المدخلات.');
@@ -38,7 +39,8 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="admin@bina.ps"
+              autoComplete="username"
+              placeholder="أدخل بريدك الإلكتروني"
             />
           </div>
           <div className="form-group">
@@ -49,6 +51,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              autoComplete="current-password"
               placeholder="••••••••"
             />
           </div>

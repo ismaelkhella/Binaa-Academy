@@ -37,6 +37,12 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
 
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ message: string }>('/auth/admin/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+
   getDashboard: () => request<DashboardStats>('/admin/dashboard'),
 
   getStudents: (params?: Record<string, string>) => {

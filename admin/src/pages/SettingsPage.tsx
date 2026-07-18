@@ -15,6 +15,13 @@ export default function SettingsPage() {
   const [editVideosPerSubject, setEditVideosPerSubject] = useState(10);
   const [editIsActive, setEditIsActive] = useState(true);
 
+  // Change-password form state
+  const [curPw, setCurPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwMsg, setPwMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
   function load() {
     setLoading(true);
     setError('');
@@ -41,6 +48,31 @@ export default function SettingsPage() {
       setTimeout(() => setSuccess(''), 3000);
     } catch (e) {
       alert(e instanceof Error ? e.message : 'حدث خطأ أثناء تعديل الباقة');
+    }
+  }
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPwMsg(null);
+    if (newPw.length < 8) {
+      setPwMsg({ ok: false, text: 'كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل' });
+      return;
+    }
+    if (newPw !== confirmPw) {
+      setPwMsg({ ok: false, text: 'تأكيد كلمة المرور غير مطابق' });
+      return;
+    }
+    setPwSaving(true);
+    try {
+      await api.changePassword(curPw, newPw);
+      setPwMsg({ ok: true, text: 'تم تغيير كلمة المرور بنجاح' });
+      setCurPw('');
+      setNewPw('');
+      setConfirmPw('');
+    } catch (err) {
+      setPwMsg({ ok: false, text: err instanceof Error ? err.message : 'فشل تغيير كلمة المرور' });
+    } finally {
+      setPwSaving(false);
     }
   }
 
@@ -120,23 +152,53 @@ export default function SettingsPage() {
 
         {/* Right Column - General System Configs Info */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Security: change admin password */}
+          <div className="card">
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.75rem' }}>🔒 الأمان — تغيير كلمة المرور</h3>
+            {pwMsg && (
+              <div
+                className={pwMsg.ok ? 'success-msg' : 'error-msg'}
+                style={pwMsg.ok
+                  ? { background: 'var(--success-bg)', color: 'var(--success-text)', padding: '0.6rem', borderRadius: '8px', marginBottom: '0.75rem', fontWeight: 600, fontSize: '0.85rem' }
+                  : { marginBottom: '0.75rem' }}
+              >
+                {pwMsg.text}
+              </div>
+            )}
+            <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div className="form-group">
+                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>كلمة المرور الحالية</label>
+                <input type="password" value={curPw} onChange={(e) => setCurPw(e.target.value)} required autoComplete="current-password" />
+              </div>
+              <div className="form-group">
+                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>كلمة المرور الجديدة (8 أحرف على الأقل)</label>
+                <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} required minLength={8} autoComplete="new-password" />
+              </div>
+              <div className="form-group">
+                <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>تأكيد كلمة المرور الجديدة</label>
+                <input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} required minLength={8} autoComplete="new-password" />
+              </div>
+              <button type="submit" className="btn-primary" disabled={pwSaving}>
+                {pwSaving ? 'جاري الحفظ...' : 'تغيير كلمة المرور'}
+              </button>
+            </form>
+          </div>
+
+          {/* General System Info */}
           <div className="card" style={{ background: '#f8fafc' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.75rem' }}>معلومات النظام</h3>
             <div style={{ fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', color: 'var(--text-muted)' }}>
               <div>
-                <strong>مزود قاعدة البيانات:</strong> SQLite (تطوير نشط)
+                <strong>قاعدة البيانات:</strong> PostgreSQL (مُدارة عبر Replit)
               </div>
               <div>
-                <strong>رابط خادم الـ API:</strong> <code style={{ direction: 'ltr', background: '#e2e8f0', padding: '0.1rem 0.3rem', borderRadius: '4px' }}>http://localhost:3000/api</code>
-              </div>
-              <div>
-                <strong>نظام المصادقة:</strong> JWT tokens (ثلاثين يوماً للمستخدمين، سبعة أيام للمدراء)
+                <strong>نظام المصادقة:</strong> جلسة المدير صالحة لمدة 24 ساعة
               </div>
               <div>
                 <strong>مدة صلاحية الـ OTP:</strong> 5 دقائق
               </div>
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
-                <p style={{ fontSize: '0.75rem', lineHeight: '1.4' }}>لتعديل الإعدادات البرمجية الأساسية (مثل مفاتيح الأمان أو البورت)، يرجى تعديل ملف التكوين المحلي البيئي <code style={{ background: '#e2e8f0', padding: '0.1rem 0.2rem', borderRadius: '4px' }}>api/.env</code>.</p>
+                <p style={{ fontSize: '0.75rem', lineHeight: '1.4' }}>ملاحظة: على الموقع المنشور، الحد الأقصى لحجم الملف المرفوع عبر اللوحة هو حوالي 32 ميغابايت. للفيديوهات الكبيرة استخدم رابط بث خارجي.</p>
               </div>
             </div>
           </div>

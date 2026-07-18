@@ -162,10 +162,6 @@ export default function TeachersPage() {
     return <div style={{ display: 'flex', gap: '2px', justifyContent: 'flex-end' }}>{stars}</div>;
   }
 
-  function handleExport() {
-    alert('جاري تصدير تقرير شؤون المعلمين بصيغة PDF...');
-  }
-
   function handleAddTeacher() {
     setIsModalOpen(true);
   }
@@ -181,9 +177,6 @@ export default function TeachersPage() {
         <div className="page-header-actions" style={{ display: 'flex', gap: '0.75rem' }}>
           <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#047857', color: '#fff', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }} onClick={handleAddTeacher}>
             <span>➕</span> إضافة معلم
-          </button>
-          <button className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={handleExport}>
-            <span>📥</span> تصدير التقارير
           </button>
         </div>
       </div>
@@ -284,7 +277,7 @@ export default function TeachersPage() {
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                           <img 
-                            src={teacher.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=80&q=80'} 
+                            src={teacher.avatar || '/avatar-placeholder.svg'} 
                             alt={teacher.name} 
                             style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }}
                           />
@@ -501,7 +494,7 @@ export default function TeachersPage() {
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
                 <div style={{ position: 'relative', width: '80px', height: '80px' }}>
                   <img 
-                    src={formData.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=80&q=80'} 
+                    src={formData.avatarUrl || '/avatar-placeholder.svg'} 
                     alt="معاينة" 
                     style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #cbd5e1' }}
                   />

@@ -12,9 +12,12 @@ const navItems = [
 
 export default function Layout() {
   const navigate = useNavigate();
+  const adminName = localStorage.getItem('admin_name') || 'المدير';
+  const adminInitials = adminName.split(' ').map((n) => n[0]).join('').slice(0, 2) || 'م';
 
   function logout() {
     localStorage.removeItem('admin_token');
+    localStorage.removeItem('admin_name');
     navigate('/login');
   }
 
@@ -29,40 +32,32 @@ export default function Layout() {
             <span className="logo-subtitle">BINA ACADEMY</span>
           </div>
         </div>
-        
+
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1 }}>
-          {navItems.map((item) => {
-            const isImplemented = ['/', '/students', '/videos', '/subscriptions', '/teachers', '/settings', '/notifications'].includes(item.to);
-            return (
-              <NavLink
-                key={item.to}
-                to={isImplemented ? item.to : '#'}
-                end={item.to === '/'}
-                onClick={(e) => {
-                  if (!isImplemented) {
-                    e.preventDefault();
-                    alert('هذا القسم سيكون متاحاً قريباً!');
-                  }
-                }}
-                className={({ isActive }) => `nav-link${isActive && isImplemented ? ' active' : ''}`}
-              >
-                <span>{item.icon}</span>
-                {item.label}
-              </NavLink>
-            );
-          })}
+          {navItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === '/'}
+              className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+            >
+              <span>{item.icon}</span>
+              {item.label}
+            </NavLink>
+          ))}
         </nav>
 
         {/* Sidebar bottom card with Admin Profile and Logout */}
         <div className="sidebar-footer">
           <div className="admin-profile-card">
-            <img
-              src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=100&q=80"
-              alt="أحمد المنصور"
+            <div
               className="admin-avatar"
-            />
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1e293b', color: '#fff', fontWeight: 700, fontSize: '0.85rem' }}
+            >
+              {adminInitials}
+            </div>
             <div className="admin-info">
-              <span className="admin-name">أحمد المنصور</span>
+              <span className="admin-name">{adminName}</span>
               <span className="admin-role">مدير النظام</span>
             </div>
           </div>
@@ -77,22 +72,22 @@ export default function Layout() {
       <div className="main">
         {/* Top Header */}
         <header className="header">
-          <div className="header-search">
-            <input type="text" placeholder="البحث عن معلم، مادة، أو مستوى دراسي..." />
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600 }}>
+            لوحة تحكم أكاديمية بناء
           </div>
           <div className="header-actions">
-            <button className="notif-btn" onClick={() => alert('لا توجد تنبيهات جديدة')}>
+            <button className="notif-btn" onClick={() => navigate('/notifications')} title="التنبيهات">
               🔔
-              <span className="notif-badge"></span>
             </button>
             <div className="user-profile">
-              <img
-                src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=100&q=80"
-                alt="أحمد المنصور"
+              <div
                 className="avatar"
-              />
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1e293b', color: '#fff', fontWeight: 700, fontSize: '0.8rem' }}
+              >
+                {adminInitials}
+              </div>
               <div className="info">
-                <span className="name">أحمد المنصور</span>
+                <span className="name">{adminName}</span>
                 <span className="role">مدير النظام</span>
               </div>
             </div>
@@ -114,12 +109,8 @@ export default function Layout() {
           color: 'var(--text-muted)',
           background: '#ffffff'
         }}>
-          <div>© 2026 أكاديمية بناء. جميع الحقوق الإدارية محفوظة.</div>
-          <div style={{ display: 'flex', gap: '1.5rem' }}>
-            <a href="#" onClick={(e) => e.preventDefault()}>حالة النظام</a>
-            <a href="#" onClick={(e) => e.preventDefault()}>مركز المساعدة</a>
-            <a href="#" onClick={(e) => e.preventDefault()}>سياسة الخصوصية</a>
-          </div>
+          <div>© 2026 أكاديمية بناء. جميع الحقوق محفوظة.</div>
+          <div>لوحة التحكم الإدارية</div>
         </footer>
       </div>
     </div>

@@ -1,6 +1,5 @@
 import { Controller, Get, Res } from '@nestjs/common';
 import { Response } from 'express';
-import { join } from 'path';
 
 @Controller()
 export class AppController {
@@ -13,12 +12,10 @@ export class AppController {
     };
   }
 
-  // Serve the admin SPA for all non-API routes in production
+  // Unknown /api/* GET routes return a JSON 404. (The SPA page-route fallback
+  // is an express middleware in main.ts, outside the /api prefix.)
   @Get('*path')
-  serveAdmin(@Res() res: Response) {
-    if (process.env.NODE_ENV === 'production') {
-      return res.sendFile(join(process.cwd(), '..', 'admin', 'dist', 'index.html'));
-    }
+  apiNotFound(@Res() res: Response) {
     return res.status(404).json({ message: 'Not found' });
   }
 }

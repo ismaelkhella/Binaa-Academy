@@ -50,6 +50,15 @@ export class AdminLoginDto {
   password!: string;
 }
 
+export class AdminChangePasswordDto {
+  @IsString()
+  currentPassword!: string;
+
+  @IsString()
+  @Length(8, 72, { message: 'كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل' })
+  newPassword!: string;
+}
+
 export class UpdateParentPhoneDto {
   @IsString()
   @Matches(/^05\d{8}$/)

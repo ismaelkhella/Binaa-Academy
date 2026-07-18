@@ -3,7 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
-import { RegisterDto, LoginDto, SetupProfileDto, AdminLoginDto } from './dto/auth.dto';
+import { RegisterDto, LoginDto, SetupProfileDto, AdminLoginDto, AdminChangePasswordDto } from './dto/auth.dto';
 import { Grade, Branch, PlanType } from '@prisma/client';
 
 @Injectable()
@@ -112,10 +112,25 @@ export class AuthService {
 
     const token = this.jwt.sign(
       { sub: admin.id, email: admin.email, role: 'ADMIN' },
-      { secret: this.config.get('ADMIN_JWT_SECRET') || this.config.get('JWT_SECRET'), expiresIn: '7d' },
+      // 24h admin sessions: password changes don't revoke already-issued
+      // tokens yet, so keep the exposure window of a stolen token short.
+      { secret: this.config.get('ADMIN_JWT_SECRET') || this.config.get('JWT_SECRET'), expiresIn: '1d' },
     );
 
     return { token, admin: { id: admin.id, email: admin.email, name: admin.name } };
+  }
+
+  async adminChangePassword(adminId: string, dto: AdminChangePasswordDto) {
+    const admin = await this.prisma.adminUser.findUnique({ where: { id: adminId } });
+    if (!admin || !(await bcrypt.compare(dto.currentPassword, admin.passwordHash))) {
+      throw new UnauthorizedException('كلمة المرور الحالية غير صحيحة');
+    }
+    if (dto.currentPassword === dto.newPassword) {
+      throw new BadRequestException('كلمة المرور الجديدة يجب أن تختلف عن الحالية');
+    }
+    const passwordHash = await bcrypt.hash(dto.newPassword, 10);
+    await this.prisma.adminUser.update({ where: { id: adminId }, data: { passwordHash } });
+    return { message: 'تم تغيير كلمة المرور بنجاح' };
   }
 
   private signStudentToken(userId: string, phone: string, role: string) {

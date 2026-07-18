@@ -1,7 +1,9 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { Request, Response, NextFunction } from 'express';
 import { join } from 'path';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 function validateSecrets() {
@@ -33,6 +35,42 @@ async function bootstrap() {
   validateSecrets();
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const isProd = process.env.NODE_ENV === 'production';
+
+  // Behind Replit's proxy (dev preview + published autoscale): trust the first
+  // proxy hop so req.ip is the real client IP — without this, rate limiting
+  // would count ALL users against one shared proxy IP in production.
+  app.set('trust proxy', 1);
+
+  // Security headers. CSP is tuned for the admin SPA (self JS bundles, React
+  // inline style attributes, Google Fonts) and lesson media on external https hosts.
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+          fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+          imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+          mediaSrc: ["'self'", 'blob:', 'https:'],
+          connectSrc: ["'self'"],
+          // Clickjacking protection: in production the admin panel must not be
+          // frameable by anyone else. Replit domains are only needed for the
+          // workspace preview iframe during development.
+          frameAncestors: isProd
+            ? ["'self'"]
+            : ["'self'", 'https://*.replit.dev', 'https://*.replit.com', 'https://*.replit.app'],
+        },
+      },
+      // frame-ancestors above is the modern control; X-Frame-Options would
+      // conflict with the Replit workspace preview iframe.
+      frameguard: false,
+      // uploads/media must stay loadable from the mobile app (different origin)
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
 
   // Serve uploaded media files — available at both /uploads/ and /api/uploads/
   // so that mobile clients using either the root URL or the /api base URL can access files.
@@ -43,16 +81,29 @@ async function bootstrap() {
     prefix: '/api/uploads/',
   });
 
-  // In production, serve the built admin panel and fall back to index.html for SPA routing
-  if (process.env.NODE_ENV === 'production') {
+  // In production, serve the built admin panel with an SPA fallback: deep
+  // links like /login or /students must load the app (index.html), not 404.
+  if (isProd) {
     const adminDist = join(process.cwd(), '..', 'admin', 'dist');
     app.useStaticAssets(adminDist);
-    app.setBaseViewsDir(adminDist);
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      const isPageRequest =
+        (req.method === 'GET' || req.method === 'HEAD') &&
+        !req.path.startsWith('/api') &&
+        !req.path.startsWith('/uploads') &&
+        !req.path.split('/').pop()?.includes('.'); // real files (js/css/svg) 404 if missing
+      if (isPageRequest) return res.sendFile(join(adminDist, 'index.html'));
+      next();
+    });
   }
 
   app.setGlobalPrefix('api');
+  // CORS: explicit origins from env only. In production the admin panel is
+  // served same-origin (no CORS needed) and native mobile apps don't enforce
+  // CORS, so default to NO cross-origin access instead of a localhost fallback.
+  const corsOrigins = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim()).filter(Boolean);
   app.enableCors({
-    origin: process.env.CORS_ORIGIN?.split(',') ?? ['http://localhost:5173'],
+    origin: corsOrigins?.length ? corsOrigins : (isProd ? false : ['http://localhost:5173', 'http://localhost:5000']),
     credentials: true,
   });
   app.useGlobalPipes(

@@ -28,7 +28,18 @@ Two workflows run in parallel:
 - **Re-seed**: `cd api && npx ts-node prisma/seed.ts` (⚠️ wipes data — dev only)
 - **History**: migrated from SQLite on 2026-07-17; pre-migration snapshot kept at `api/prisma/dev.db` + `dev.db.backup` (no longer used by the app)
 - Production DB is separate and persistent — publishing applies schema diffs only and never copies data by itself. The Publish UI has an optional "overwrite/copy data from development" choice the user can pick when prod needs the dev data (needed on 2026-07-17: prod was provisioned schema-only/empty)
-- ⚠️ The published (autoscale) site rejects request bodies over ~32 MB (413 at the ingress) — large video uploads cannot go through the API in production
+- ⚠️ The published (autoscale) site rejects request bodies over ~32 MB (413 at the ingress) — large video uploads cannot go through the API in production. Lesson videos are hosted externally (user pastes stream URLs)
+
+## Production Security Posture (hardened 2026-07-18)
+- `helmet` security headers with CSP tuned for the admin SPA (Google Fonts, external https media allowed); `frame-ancestors` is `'self'`-only in production (Replit preview domains allowed only in dev); `Cross-Origin-Resource-Policy: cross-origin` so the mobile app can load `/uploads`
+- `trust proxy` is set — required behind Replit's proxy so rate limiting counts real client IPs, not the shared proxy IP
+- Rate limiting: global 100/min; login, register, admin login, and change-password endpoints are 5-10/min
+- CORS: env-driven (`CORS_ORIGIN`); production default is NO cross-origin access (admin SPA is same-origin; native mobile apps don't use CORS)
+- Admin can change their password from Settings (`POST /api/auth/admin/change-password`); the seeded default password must be changed before/at launch
+- Admin JWTs last 24h. Password change does NOT revoke already-issued tokens — the short TTL is the compensating control until session revocation exists
+- Production serves the admin SPA from the API process via an express SPA-fallback middleware in `api/src/main.ts` (deep links like `/login` work; unknown `/api/*` routes return JSON 404). Nest's global prefix means controller catch-alls only match under `/api` — page-route fallbacks must stay express middleware
+- Cart checkout is a payment SIMULATION and is hard-disabled in production (would grant paid subscriptions for free); admins grant subscriptions manually from the panel
+- `npm audit` in `api/` reports vulns only in dev tooling (`@nestjs/cli` → webpack/inquirer chain), not in runtime dependencies
 
 ## Admin Login
 

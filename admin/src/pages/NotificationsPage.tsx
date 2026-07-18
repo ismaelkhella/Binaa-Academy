@@ -40,24 +40,8 @@ export default function NotificationsPage() {
   }, []);
 
   function initializeDefaultNotifications() {
-    const defaults: NotificationItem[] = [
-      {
-        id: '1',
-        title: 'مرحباً بكم في أكاديمية بناء التعليمية!',
-        message: 'يسعدنا انضمامكم إلينا. تم تفعيل حسابك بنجاح، يمكنك الآن البدء بحضور الحصص وحل الكويزات لضمان تحقيق التفوق.',
-        target: 'ALL',
-        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        id: '2',
-        title: 'تحديث مادة الفيزياء للتوجيهي العلمي',
-        message: 'تم إضافة فيديوهات جديدة لشرح وحدة الكهرومغناطيسية وتحديث الأسئلة المقترحة للامتحان النهائي. تفقد قسم الدروس والمحتوى الآن.',
-        target: 'G12_SCI',
-        createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-      }
-    ];
-    setNotifications(defaults);
-    localStorage.setItem('bina_notifications', JSON.stringify(defaults));
+    // Start with a clean, empty history — no fake seeded notifications.
+    setNotifications([]);
   }
 
   function saveNotifications(items: NotificationItem[]) {
