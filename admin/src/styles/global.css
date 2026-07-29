@@ -888,19 +888,100 @@ tr:hover td {
   border-color: #fca5a5;
 }
 
-/* Responsive */
+/* App Footer */
+.app-footer {
+  padding: 1.5rem 2rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: #ffffff;
+}
+
+/* Mobile drawer controls (hidden on desktop) */
+.menu-btn {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  padding: 0.25rem 0.4rem;
+  color: var(--text);
+  line-height: 1;
+  align-items: center;
+}
+
+.drawer-close {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  padding: 0.25rem 0.5rem;
+  margin-inline-start: auto;
+  align-items: center;
+}
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 55;
+}
+
+/* Split layouts that collapse on smaller screens */
+.split-2-1 {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1.5rem;
+}
+
+.split-note {
+  display: grid;
+  grid-template-columns: 1.2fr 1.8fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.detail-stats-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+/* ===================== Responsive ===================== */
 @media (max-width: 1024px) {
   .grid-3 {
+    grid-template-columns: 1fr;
+  }
+  .split-2-1,
+  .split-note {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 768px) {
+  /* Sidebar becomes an off-canvas drawer sliding in from the right (RTL) */
   .sidebar {
-    width: 100%;
-    position: relative;
-    border-left: none;
-    border-bottom: 1px solid var(--border);
+    transform: translateX(105%);
+    transition: transform 0.25s ease;
+    z-index: 60;
+    width: min(300px, 85vw);
+    box-shadow: -8px 0 24px rgba(15, 23, 42, 0.15);
+    overflow-y: auto;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .menu-btn,
+  .drawer-close {
+    display: flex;
   }
   .main {
     margin-right: 0;
@@ -908,7 +989,79 @@ tr:hover td {
   .header {
     padding: 0 1rem;
   }
+  .header-actions {
+    gap: 0.75rem;
+  }
+  .user-profile {
+    padding-right: 0.75rem;
+  }
   .content-area {
     padding: 1rem;
+  }
+  .page-header {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+  }
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+  }
+  .stat-card {
+    padding: 1rem;
+  }
+  .stat-card .value {
+    font-size: 1.5rem;
+  }
+  .card {
+    padding: 1rem;
+  }
+  .filters input,
+  .filters select {
+    max-width: 100%;
+  }
+  .table-wrap {
+    -webkit-overflow-scrolling: touch;
+  }
+  .table-wrap th,
+  .table-wrap td {
+    white-space: nowrap;
+  }
+  .detail-stats-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .app-footer {
+    flex-direction: column;
+    gap: 0.25rem;
+    text-align: center;
+    padding: 1rem;
+  }
+  .login-card {
+    padding: 1.75rem 1.25rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .form-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-title {
+    display: none;
+  }
+  .user-profile .info {
+    display: none;
+  }
+  .page-header-text h1 {
+    font-size: 1.35rem;
+  }
+}
+
+@media (max-width: 400px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
   }
 }

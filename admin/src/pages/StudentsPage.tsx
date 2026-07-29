@@ -332,7 +332,7 @@ export default function StudentsPage() {
 
             {/* Tab Contents */}
             {activeTab === 'info' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', padding: '0.5rem 0' }}>
+              <div className="form-grid-2" style={{ gap: '1.25rem', padding: '0.5rem 0' }}>
                 <div className="form-group">
                   <label style={{ fontWeight: 600, fontSize: '0.85rem', display: 'block', marginBottom: '0.4rem' }}>الاسم الكامل</label>
                   <input value={studentDetail?.name || profileStudent.name || '—'} readOnly style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: 'var(--text)' }} />
@@ -390,7 +390,7 @@ export default function StudentsPage() {
                 ) : studentDetail ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     {/* Metrics Row */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
+                    <div className="detail-stats-4">
                       <div style={{ background: '#f8fafc', padding: '0.85rem', borderRadius: '8px', border: '1px solid var(--border)', textAlign: 'center' }}>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>إجمالي المشاهدات</div>
                         <div style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--primary)', marginTop: '0.25rem' }}>{studentDetail.videoViews?.length || 0}</div>
@@ -412,7 +412,7 @@ export default function StudentsPage() {
                     </div>
 
                     {/* Tables grid */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-grid-2">
                       {/* Video Views */}
                       <div className="card" style={{ padding: '1rem', background: '#ffffff', minHeight: '200px' }}>
                         <h4 style={{ fontSize: '0.9rem', fontWeight: 700, borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginBottom: '0.75rem' }}>آخر الفيديوهات المشاهدة</h4>
@@ -599,11 +599,9 @@ export default function StudentsPage() {
                         border: '1px solid var(--border)',
                         borderRadius: '8px',
                         padding: '0.75rem',
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
                         gap: '0.5rem',
                         background: '#f8fafc'
-                      }}>
+                      }} className="form-grid-2">
                         {subjects
                           .filter((s) => s.grade === profileStudent.grade && s.branch === profileStudent.branch)
                           .map((sub) => {

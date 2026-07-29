@@ -88,7 +88,7 @@ export default function SettingsPage() {
       {error && <div className="error-msg">{error}</div>}
       {success && <div className="success-msg" style={{ background: 'var(--success-bg)', color: 'var(--success-text)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontWeight: 600 }}>{success}</div>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem' }}>
+      <div className="split-2-1">
         {/* Left Column - Subscription Plans */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div className="card">

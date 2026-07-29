@@ -667,7 +667,7 @@ export default function VideosPage() {
                       placeholder="نص السؤال..."
                       style={{ width: '100%', padding: '0.5rem', fontSize: '0.8rem', marginBottom: '0.5rem', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                     />
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                    <div className="form-grid-2" style={{ gap: '0.4rem', marginBottom: '0.5rem' }}>
                       {q.options.map((opt, oIdx) => (
                         <input key={oIdx} value={opt}
                           onChange={(e) => { const qs = [...form.questions]; qs[qIdx].options[oIdx] = e.target.value; setForm({ ...form, questions: qs }); }}

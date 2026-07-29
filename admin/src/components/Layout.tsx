@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 
 const navItems = [
@@ -12,6 +13,7 @@ const navItems = [
 
 export default function Layout() {
   const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
   const adminName = localStorage.getItem('admin_name') || 'المدير';
   const adminInitials = adminName.split(' ').map((n) => n[0]).join('').slice(0, 2) || 'م';
 
@@ -23,14 +25,18 @@ export default function Layout() {
 
   return (
     <div className="layout">
-      {/* Right Sidebar (RTL layout) */}
-      <aside className="sidebar">
+      {/* Mobile drawer backdrop */}
+      {menuOpen && <div className="sidebar-overlay" onClick={() => setMenuOpen(false)} />}
+
+      {/* Right Sidebar (RTL layout) — becomes a slide-in drawer on mobile */}
+      <aside className={`sidebar${menuOpen ? ' open' : ''}`}>
         <div className="sidebar-logo-container">
           <div className="logo-icon">🎓</div>
           <div className="logo-text">
             <span className="logo-title">أكاديمية بناء</span>
             <span className="logo-subtitle">BINA ACADEMY</span>
           </div>
+          <button className="drawer-close" onClick={() => setMenuOpen(false)} aria-label="إغلاق القائمة">✕</button>
         </div>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1 }}>
@@ -40,6 +46,7 @@ export default function Layout() {
               to={item.to}
               end={item.to === '/'}
               className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+              onClick={() => setMenuOpen(false)}
             >
               <span>{item.icon}</span>
               {item.label}
@@ -72,8 +79,11 @@ export default function Layout() {
       <div className="main">
         {/* Top Header */}
         <header className="header">
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600 }}>
-            لوحة تحكم أكاديمية بناء
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+            <button className="menu-btn" onClick={() => setMenuOpen(true)} aria-label="فتح القائمة">☰</button>
+            <div className="header-title" style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600 }}>
+              لوحة تحكم أكاديمية بناء
+            </div>
           </div>
           <div className="header-actions">
             <button className="notif-btn" onClick={() => navigate('/notifications')} title="التنبيهات">
@@ -100,15 +110,7 @@ export default function Layout() {
         </main>
 
         {/* administrative footer */}
-        <footer style={{
-          padding: '1.5rem 2rem',
-          borderTop: '1px solid var(--border)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          fontSize: '0.75rem',
-          color: 'var(--text-muted)',
-          background: '#ffffff'
-        }}>
+        <footer className="app-footer">
           <div>© 2026 أكاديمية بناء. جميع الحقوق محفوظة.</div>
           <div>لوحة التحكم الإدارية</div>
         </footer>
