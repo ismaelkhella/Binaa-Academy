@@ -75,6 +75,55 @@ export class MuxService {
     }
   }
 
+  /**
+   * Safety net for missed webhooks (and for development, where Mux can only
+   * reach the production webhook URL): poll Mux for videos still marked
+   * "processing" and sync their status. Best-effort — errors are swallowed.
+   */
+  async reconcileProcessingVideos(): Promise<void> {
+    if (!this.mux) return;
+    const pending = await this.prisma.video.findMany({
+      where: { videoStatus: { in: ['uploading', 'processing'] } },
+      select: { id: true, muxAssetId: true, muxUploadId: true },
+      take: 20,
+    });
+    for (const v of pending) {
+      try {
+        let assetId = v.muxAssetId;
+        if (!assetId && v.muxUploadId) {
+          const upload = await this.mux.video.uploads.retrieve(v.muxUploadId);
+          if (upload.status === 'errored' || upload.status === 'cancelled' || upload.status === 'timed_out') {
+            await this.prisma.video.update({ where: { id: v.id }, data: { videoStatus: 'failed' } });
+            continue;
+          }
+          assetId = upload.asset_id ?? null;
+        }
+        if (!assetId) continue;
+        const asset = await this.mux.video.assets.retrieve(assetId);
+        if (asset.status === 'ready') {
+          const playbackId = asset.playback_ids?.find((p) => p.policy === 'public')?.id ?? asset.playback_ids?.[0]?.id;
+          if (!playbackId) continue;
+          await this.prisma.video.update({
+            where: { id: v.id },
+            data: {
+              muxAssetId: assetId,
+              muxPlaybackId: playbackId,
+              videoStatus: 'ready',
+              streamUrl: MuxService.playbackUrl(playbackId),
+              ...(asset.duration ? { durationSec: Math.round(asset.duration) } : {}),
+            },
+          });
+        } else if (asset.status === 'errored') {
+          await this.prisma.video.update({ where: { id: v.id }, data: { muxAssetId: assetId, videoStatus: 'failed' } });
+        } else if (assetId !== v.muxAssetId) {
+          await this.prisma.video.update({ where: { id: v.id }, data: { muxAssetId: assetId } });
+        }
+      } catch (err) {
+        this.logger.warn(`Reconcile failed for video ${v.id}: ${(err as Error).message}`);
+      }
+    }
+  }
+
   /** Handle a verified Mux webhook event. */
   async handleEvent(event: { type: string; data: any }): Promise<void> {
     const { type, data } = event;

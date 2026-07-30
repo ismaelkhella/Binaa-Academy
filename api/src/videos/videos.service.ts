@@ -144,6 +144,12 @@ export class VideosService {
       throw new ForbiddenException('تم استنفاد عدد المشاهدات المسموح');
     }
 
+    // Mux uploads have no stream URL until processing completes — never hand
+    // the player a null/empty URL (it would render the site root instead).
+    if (!video.streamUrl) {
+      throw new NotFoundException('الفيديو قيد المعالجة حالياً — حاول مجدداً بعد قليل');
+    }
+
     return {
       streamUrl: video.streamUrl,
       watermark: { name: user?.name ?? 'طالب', phone: user?.phone ?? '' },

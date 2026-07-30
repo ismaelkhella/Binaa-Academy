@@ -282,6 +282,8 @@ export class AdminService {
   }
 
   async listVideos() {
+    // Sync any still-processing Mux videos before returning the list
+    await this.muxService.reconcileProcessingVideos().catch(() => undefined);
     return this.prisma.video.findMany({
       include: {
         subject: { select: { name: true, grade: true, branch: true } },
@@ -321,13 +323,13 @@ export class AdminService {
   async updateVideo(id: string, dto: Partial<CreateVideoDto>) {
     const { questions, ...videoData } = dto;
     const data: Record<string, unknown> = { ...videoData };
+    const existing = await this.prisma.video.findUnique({
+      where: { id },
+      select: { muxAssetId: true, muxUploadId: true },
+    });
     if (videoData.muxUploadId) {
       // Replacing the video with a new Mux upload: delete the old asset and
       // reset playback fields — the webhook will fill them when the new asset is ready.
-      const existing = await this.prisma.video.findUnique({
-        where: { id },
-        select: { muxAssetId: true, muxUploadId: true },
-      });
       if (existing?.muxUploadId !== videoData.muxUploadId) {
         if (existing?.muxAssetId) await this.muxService.deleteAsset(existing.muxAssetId);
         data.muxAssetId = null;
@@ -335,6 +337,17 @@ export class AdminService {
         data.videoStatus = 'processing';
         data.streamUrl = null;
       }
+    } else if (
+      videoData.streamUrl &&
+      (existing?.muxAssetId || existing?.muxUploadId)
+    ) {
+      // Switching a Mux-backed video to a manual URL: delete the old asset and
+      // clear the stale Mux linkage so status/reconciliation don't lie.
+      if (existing.muxAssetId) await this.muxService.deleteAsset(existing.muxAssetId);
+      data.muxUploadId = null;
+      data.muxAssetId = null;
+      data.muxPlaybackId = null;
+      data.videoStatus = 'none';
     }
     const video = await this.prisma.video.update({ where: { id }, data: data as any });
     if (questions) {

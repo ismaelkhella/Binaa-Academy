@@ -28,7 +28,8 @@ Two workflows run in parallel:
 - **Re-seed**: `cd api && npx ts-node prisma/seed.ts` (⚠️ wipes data — dev only)
 - **History**: migrated from SQLite on 2026-07-17; pre-migration snapshot kept at `api/prisma/dev.db` + `dev.db.backup` (no longer used by the app)
 - Production DB is separate and persistent — publishing applies schema diffs only and never copies data by itself. The Publish UI has an optional "overwrite/copy data from development" choice the user can pick when prod needs the dev data (needed on 2026-07-17: prod was provisioned schema-only/empty)
-- ⚠️ The published (autoscale) site rejects request bodies over ~32 MB (413 at the ingress) — large video uploads cannot go through the API in production. Lesson videos are hosted externally (user pastes stream URLs)
+- ⚠️ The published (autoscale) site rejects request bodies over ~32 MB (413 at the ingress) — large video uploads cannot go through the API in production.
+- Lesson videos are hosted on **Mux**: admin uploads go straight from the browser to Mux (`POST /api/mux/create-upload` → direct PUT), so files never touch the API. `POST /api/mux/webhook` (signature-verified, raw body) marks videos ready and fills `streamUrl` with the HLS URL; `listVideos` also reconciles still-processing videos by polling Mux (webhooks only reach the production URL). Pasting an external stream URL is still supported. The Mux dashboard webhook must point at `https://<production-domain>/api/mux/webhook`.
 
 ## Production Security Posture (hardened 2026-07-18)
 - `helmet` security headers with CSP tuned for the admin SPA (Google Fonts, external https media allowed); `frame-ancestors` is `'self'`-only in production (Replit preview domains allowed only in dev); `Cross-Origin-Resource-Policy: cross-origin` so the mobile app can load `/uploads`
