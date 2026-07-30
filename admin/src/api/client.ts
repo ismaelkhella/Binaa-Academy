@@ -107,6 +107,46 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  /** Ask the API for a Mux direct-upload URL (file goes straight from the browser to Mux). */
+  createMuxUpload: () =>
+    request<{ uploadId: string; uploadUrl: string }>('/mux/create-upload', { method: 'POST' }),
+
+  /** PUT the video file directly to Mux with progress events. */
+  uploadToMux: (uploadUrl: string, file: File, onProgress: (p: UploadProgress) => void, signal?: AbortSignal) => {
+    return new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const makeAbortError = () => {
+        const e = new Error('تم إلغاء الرفع');
+        e.name = 'AbortError';
+        return e;
+      };
+      if (signal) {
+        if (signal.aborted) { reject(makeAbortError()); return; }
+        signal.addEventListener('abort', () => xhr.abort(), { once: true });
+      }
+      const startTime = Date.now();
+      xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable) return;
+        const elapsedSec = (Date.now() - startTime) / 1000;
+        const loadedMB = e.loaded / (1024 * 1024);
+        onProgress({
+          percent: Math.min(100, Math.round((e.loaded / e.total) * 100)),
+          loadedMB,
+          totalMB: e.total / (1024 * 1024),
+          speedMBps: elapsedSec > 0 ? loadedMB / elapsedSec : 0,
+        });
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else reject(new Error(`فشل رفع الفيديو إلى خادم البث (${xhr.status})`));
+      };
+      xhr.onerror = () => reject(new Error('تعذر الاتصال بخادم البث أثناء الرفع'));
+      xhr.onabort = () => reject(makeAbortError());
+      xhr.open('PUT', uploadUrl);
+      xhr.send(file);
+    });
+  },
+
   uploadFile: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -266,6 +306,12 @@ export interface Video {
   _count: { videoViews: number };
   pdfUrl?: string | null;
   questions?: VideoQuestion[];
+  streamUrl?: string | null;
+  muxUploadId?: string | null;
+  muxAssetId?: string | null;
+  muxPlaybackId?: string | null;
+  /** none | uploading | processing | ready | failed */
+  videoStatus?: string;
 }
 
 export interface CreateVideoInput {
@@ -273,6 +319,7 @@ export interface CreateVideoInput {
   title: string;
   description?: string;
   streamUrl?: string;
+  muxUploadId?: string;
   status?: string;
   pdfUrl?: string;
   questions?: { text: string; options: string[]; answer: string }[];

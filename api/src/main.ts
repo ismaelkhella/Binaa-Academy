@@ -34,7 +34,8 @@ function validateSecrets() {
 async function bootstrap() {
   validateSecrets();
 
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // rawBody: needed to verify Mux webhook signatures against the exact bytes.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   const isProd = process.env.NODE_ENV === 'production';
 
   // Behind Replit's proxy (dev preview + published autoscale): trust the first

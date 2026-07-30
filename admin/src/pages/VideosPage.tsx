@@ -18,8 +18,17 @@ const GRADE_GROUPS = [
   { key: 'GRADE_12__LITERARY',  grade: 'GRADE_12' as const, branch: 'LITERARY'  as const, label: 'الثاني عشر — الأدبي', icon: '✍️', color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
 ];
 
+const VIDEO_EXTENSIONS = /\.(mp4|mov|mkv|webm|m4v)$/i;
+const MAX_VIDEO_BYTES = 10 * 1024 * 1024 * 1024; // 10GB (Mux direct upload limit we enforce)
+
+function validateVideoFile(file: File): string | null {
+  if (!VIDEO_EXTENSIONS.test(file.name)) return 'صيغة الملف غير مدعومة — الرجاء اختيار ملف فيديو (mp4, mov, mkv, webm)';
+  if (file.size > MAX_VIDEO_BYTES) return 'حجم الملف يتجاوز الحد الأقصى (10 جيجابايت)';
+  return null;
+}
+
 const EMPTY_FORM = {
-  title: '', description: '', streamUrl: '', pdfUrl: '',
+  title: '', description: '', streamUrl: '', muxUploadId: '', pdfUrl: '',
   questions: [
     { text: '', options: ['', '', '', ''], answer: '' },
     { text: '', options: ['', '', '', ''], answer: '' },
@@ -55,7 +64,7 @@ export default function VideosPage() {
 
   // Edit-video modal
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
-  const [editForm, setEditForm]         = useState({ title: '', description: '', streamUrl: '', pdfUrl: '' });
+  const [editForm, setEditForm]         = useState({ title: '', description: '', streamUrl: '', muxUploadId: '', pdfUrl: '' });
   const [savingEdit, setSavingEdit]     = useState(false);
   const [uploadingEditVideo, setUploadingEditVideo]           = useState(false);
   const [editVideoProgress, setEditVideoProgress]             = useState<UploadProgress | null>(null);
@@ -116,12 +125,17 @@ export default function VideosPage() {
     setUploadingVideo(true);
     setVideoProgress(null);
     try {
-      const r = await api.uploadFileWithProgress(
+      const fileError = validateVideoFile(file);
+      if (fileError) throw new Error(fileError);
+      // Direct-to-Mux upload: the file never passes through our API
+      const { uploadId, uploadUrl } = await api.createMuxUpload();
+      await api.uploadToMux(
+        uploadUrl,
         file,
         (p) => { if (addUploadCtrl.current === ctrl) setVideoProgress(p); },
         ctrl.signal,
       );
-      if (addUploadCtrl.current === ctrl) setForm((p) => ({ ...p, streamUrl: r.url }));
+      if (addUploadCtrl.current === ctrl) setForm((p) => ({ ...p, muxUploadId: uploadId, streamUrl: '' }));
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') alert((err as Error)?.message || 'فشل رفع ملف الفيديو');
     } finally {
@@ -171,6 +185,7 @@ export default function VideosPage() {
       title:       v.title,
       description: v.description ?? '',
       streamUrl:   (v as any).streamUrl ?? '',
+      muxUploadId: '',
       pdfUrl:      v.pdfUrl ?? '',
     });
   }
@@ -191,12 +206,16 @@ export default function VideosPage() {
     setUploadingEditVideo(true);
     setEditVideoProgress(null);
     try {
-      const r = await api.uploadFileWithProgress(
+      const fileError = validateVideoFile(file);
+      if (fileError) throw new Error(fileError);
+      const { uploadId, uploadUrl } = await api.createMuxUpload();
+      await api.uploadToMux(
+        uploadUrl,
         file,
         (p) => { if (editUploadCtrl.current === ctrl) setEditVideoProgress(p); },
         ctrl.signal,
       );
-      if (editUploadCtrl.current === ctrl) setEditForm((p) => ({ ...p, streamUrl: r.url }));
+      if (editUploadCtrl.current === ctrl) setEditForm((p) => ({ ...p, muxUploadId: uploadId, streamUrl: '' }));
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') alert((err as Error)?.message || 'فشل رفع ملف الفيديو');
     } finally {
@@ -220,7 +239,7 @@ export default function VideosPage() {
     e.preventDefault();
     if (!editingVideo || savingEdit) return;
     const streamUrl = editForm.streamUrl.trim();
-    if (streamUrl && !/^https?:\/\//i.test(streamUrl)) {
+    if (!editForm.muxUploadId && streamUrl && !/^https?:\/\//i.test(streamUrl)) {
       alert('رابط الفيديو غير صالح — يجب أن يبدأ بـ http أو https');
       return;
     }
@@ -229,7 +248,9 @@ export default function VideosPage() {
       await api.updateVideo(editingVideo.id, {
         title:       editForm.title,
         description: editForm.description,
-        streamUrl:   streamUrl || undefined,
+        // A new Mux upload replaces the current video; otherwise keep/pass the URL
+        muxUploadId: editForm.muxUploadId || undefined,
+        streamUrl:   editForm.muxUploadId ? undefined : (streamUrl || undefined),
         pdfUrl:      editForm.pdfUrl    || undefined,
       });
       setEditingVideo(null);
@@ -251,7 +272,7 @@ export default function VideosPage() {
     e.preventDefault();
     if (!subjectId || savingVideo) return;
     const streamUrl = form.streamUrl.trim();
-    if (!/^https?:\/\//i.test(streamUrl)) {
+    if (!form.muxUploadId && !/^https?:\/\//i.test(streamUrl)) {
       alert('لا يمكن حفظ الدرس بدون فيديو.\nارفع ملف الفيديو وانتظر حتى يكتمل الرفع بنجاح، أو أدخل رابط بث يبدأ بـ http أو https');
       return;
     }
@@ -264,7 +285,8 @@ export default function VideosPage() {
         subjectId,
         title: form.title,
         description: form.description,
-        streamUrl,
+        muxUploadId: form.muxUploadId || undefined,
+        streamUrl: form.muxUploadId ? undefined : streamUrl,
         status: 'PUBLISHED',
         pdfUrl: form.pdfUrl || undefined,
         questions: filteredQ.length > 0 ? filteredQ : undefined,
@@ -487,6 +509,18 @@ export default function VideosPage() {
                         </div>
                       </div>
 
+                      {/* Video processing status (Mux uploads) */}
+                      {v.videoStatus === 'processing' && (
+                        <span className="badge badge-muted" style={{ flexShrink: 0, background: '#fef3c7', color: '#92400e' }}>
+                          ⏳ قيد المعالجة
+                        </span>
+                      )}
+                      {v.videoStatus === 'failed' && (
+                        <span className="badge badge-muted" style={{ flexShrink: 0, background: '#fee2e2', color: '#b91c1c' }}>
+                          ⚠️ فشلت المعالجة
+                        </span>
+                      )}
+
                       {/* Status badge */}
                       <span className={`badge ${v.status === 'PUBLISHED' ? 'badge-success' : 'badge-muted'}`} style={{ flexShrink: 0 }}>
                         {v.status === 'PUBLISHED' ? 'منشور' : 'مسودة'}
@@ -636,8 +670,13 @@ export default function VideosPage() {
                 <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>رفع ملف الفيديو</label>
                 <input type="file" accept="video/*" onChange={handleVideoUpload} disabled={uploadingVideo} style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }} />
                 {uploadingVideo && <UploadProgressBar progress={videoProgress} onCancel={cancelAddVideoUpload} />}
+                {form.muxUploadId && !uploadingVideo && (
+                  <span style={{ fontSize: '0.75rem', color: '#047857', display: 'block', marginTop: '0.25rem' }}>
+                    ✅ تم رفع الفيديو — ستتم معالجته تلقائياً بعد الحفظ (قد تستغرق بضع دقائق)
+                  </span>
+                )}
                 <label style={{ display: 'block', margin: '0.5rem 0 0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>أو رابط البث (HLS)</label>
-                <input value={form.streamUrl} onChange={(e) => setForm({ ...form, streamUrl: e.target.value })} placeholder="https://..." />
+                <input value={form.streamUrl} onChange={(e) => setForm({ ...form, streamUrl: e.target.value, muxUploadId: '' })} placeholder="https://..." />
                 {form.streamUrl && (
                   <span style={{ fontSize: '0.75rem', color: '#047857', display: 'block', marginTop: '0.25rem' }}>
                     ✅ {form.streamUrl.includes('/uploads/') ? `ملف مرفوع: ${form.streamUrl.split('/').pop()}` : `رابط: ${form.streamUrl}`}
@@ -733,8 +772,13 @@ export default function VideosPage() {
                 <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>فيديو جديد (اختياري)</label>
                 <input type="file" accept="video/*" onChange={handleEditVideoUpload} disabled={uploadingEditVideo} style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }} />
                 {uploadingEditVideo && <UploadProgressBar progress={editVideoProgress} onCancel={cancelEditVideoUpload} />}
+                {editForm.muxUploadId && !uploadingEditVideo && (
+                  <span style={{ fontSize: '0.75rem', color: '#047857', display: 'block', marginTop: '0.25rem' }}>
+                    ✅ تم رفع الفيديو الجديد — سيستبدل الفيديو الحالي وتتم معالجته بعد الحفظ
+                  </span>
+                )}
                 <label style={{ display: 'block', margin: '0.5rem 0 0.4rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>أو رابط البث (HLS)</label>
-                <input value={editForm.streamUrl} onChange={(e) => setEditForm({ ...editForm, streamUrl: e.target.value })} placeholder="https://..." />
+                <input value={editForm.streamUrl} onChange={(e) => setEditForm({ ...editForm, streamUrl: e.target.value, muxUploadId: '' })} placeholder="https://..." />
                 {editForm.streamUrl && (
                   <span style={{ fontSize: '0.75rem', color: '#047857', display: 'block', marginTop: '0.25rem' }}>
                     ✅ {editForm.streamUrl.includes('/uploads/') ? `ملف: ${editForm.streamUrl.split('/').pop()}` : `رابط: ${editForm.streamUrl}`}

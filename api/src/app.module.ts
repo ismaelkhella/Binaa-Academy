@@ -16,6 +16,7 @@ import { PerformanceModule } from './performance/performance.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { CartModule } from './cart/cart.module';
 import { ChatModule } from './chat/chat.module';
+import { MuxModule } from './mux/mux.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { ChatModule } from './chat/chat.module';
     DashboardModule,
     CartModule,
     ChatModule,
+    MuxModule,
   ],
   controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

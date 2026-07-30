@@ -111,6 +111,11 @@ model Video {
   downloadDays Int        @default(7) @map("download_days")
   status      VideoStatus @default(DRAFT)
   pdfUrl      String?     @map("pdf_url")
+  muxUploadId   String?   @map("mux_upload_id")
+  muxAssetId    String?   @map("mux_asset_id")
+  muxPlaybackId String?   @map("mux_playback_id")
+  // none = external URL video, uploading/processing/ready/failed = Mux lifecycle
+  videoStatus   String    @default("none") @map("video_status")
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 

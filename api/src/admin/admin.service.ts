@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { MuxService } from '../mux/mux.service';
 import {
   ListStudentsQuery,
   UpdateStudentDto,
@@ -14,7 +15,10 @@ import { PlanType } from '@prisma/client';
 
 @Injectable()
 export class AdminService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private muxService: MuxService,
+  ) {}
 
   async getDashboardStats() {
     const now = new Date();
@@ -291,7 +295,13 @@ export class AdminService {
 
   async createVideo(dto: CreateVideoDto) {
     const { questions, ...videoData } = dto;
-    const video = await this.prisma.video.create({ data: videoData });
+    const video = await this.prisma.video.create({
+      data: {
+        ...videoData,
+        // Mux uploads start without a URL; webhook fills streamUrl when ready.
+        ...(videoData.muxUploadId ? { videoStatus: 'processing' } : {}),
+      },
+    });
     if (questions && questions.length > 0) {
       await this.prisma.videoQuestion.createMany({
         data: questions.map((q) => ({
@@ -310,7 +320,23 @@ export class AdminService {
 
   async updateVideo(id: string, dto: Partial<CreateVideoDto>) {
     const { questions, ...videoData } = dto;
-    const video = await this.prisma.video.update({ where: { id }, data: videoData });
+    const data: Record<string, unknown> = { ...videoData };
+    if (videoData.muxUploadId) {
+      // Replacing the video with a new Mux upload: delete the old asset and
+      // reset playback fields — the webhook will fill them when the new asset is ready.
+      const existing = await this.prisma.video.findUnique({
+        where: { id },
+        select: { muxAssetId: true, muxUploadId: true },
+      });
+      if (existing?.muxUploadId !== videoData.muxUploadId) {
+        if (existing?.muxAssetId) await this.muxService.deleteAsset(existing.muxAssetId);
+        data.muxAssetId = null;
+        data.muxPlaybackId = null;
+        data.videoStatus = 'processing';
+        data.streamUrl = null;
+      }
+    }
+    const video = await this.prisma.video.update({ where: { id }, data: data as any });
     if (questions) {
       await this.prisma.videoQuestion.deleteMany({ where: { videoId: id } });
       if (questions.length > 0) {

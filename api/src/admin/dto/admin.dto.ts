@@ -72,13 +72,20 @@ export class CreateVideoDto {
   @IsString()
   description?: string;
 
-  // Required: a lesson without a playable video URL renders the site root
-  // (the admin panel page in production) inside the student's video player.
+  // Either a direct stream URL OR a Mux upload ID must be provided.
+  // A lesson without any video source renders the site root (the admin panel
+  // page in production) inside the student's video player.
+  @ValidateIf((o) => !o.muxUploadId)
   @IsString()
   @Matches(/^https?:\/\/.+/, {
     message: 'رابط الفيديو مطلوب — ارفع ملف الفيديو حتى يكتمل الرفع أو أدخل رابط بث صالحاً يبدأ بـ http',
   })
-  streamUrl!: string;
+  streamUrl?: string;
+
+  // Mux direct-upload ID (set when the admin uploads a file via Mux).
+  @IsOptional()
+  @IsString()
+  muxUploadId?: string;
 
   @IsOptional()
   @IsNumber()
@@ -130,6 +137,11 @@ export class UpdateVideoDto {
     message: 'رابط الفيديو غير صالح — يجب أن يبدأ بـ http أو https',
   })
   streamUrl?: string;
+
+  // Providing a new Mux upload ID replaces the current video (old asset is deleted).
+  @IsOptional()
+  @IsString()
+  muxUploadId?: string;
 
   @IsOptional()
   @IsNumber()
