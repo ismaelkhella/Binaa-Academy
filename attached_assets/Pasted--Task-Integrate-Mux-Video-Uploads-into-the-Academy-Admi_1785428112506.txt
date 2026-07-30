@@ -1,0 +1,283 @@
+# Task: Integrate Mux Video Uploads into the Academy Admin Panel
+
+You are a senior Full Stack Engineer.
+
+The project already has:
+
+* Admin Dashboard (running on Replit)
+* Backend API
+* Database containing Courses and Lessons
+* Flutter mobile application consuming the backend APIs
+
+Your task is to integrate **Mux Video** so that administrators can upload lesson videos directly from the admin dashboard.
+
+## Requirements
+
+### 1. Mux Configuration
+
+Read these environment variables:
+
+```
+MUX_TOKEN_ID=
+MUX_TOKEN_SECRET=
+MUX_WEBHOOK_SECRET=
+```
+
+Never hardcode credentials.
+
+---
+
+## 2. Lesson Database
+
+Extend the Lesson model with the following fields if they don't exist:
+
+```
+mux_asset_id
+mux_upload_id
+mux_playback_id
+video_duration
+video_status
+```
+
+video_status values:
+
+* uploading
+* processing
+* ready
+* failed
+
+---
+
+## 3. Create Upload Endpoint
+
+Create an API endpoint:
+
+```
+POST /api/mux/create-upload
+```
+
+Using the official Mux SDK.
+
+Create a Direct Upload with:
+
+* playback_policy = public
+* mp4_support = standard
+* cors enabled for the admin dashboard domain
+
+Return:
+
+```
+upload_id
+upload_url
+```
+
+---
+
+## 4. Upload from Admin Dashboard
+
+When the admin edits a lesson:
+
+Replace the current video upload with:
+
+```
+Choose Video
+
+↓
+
+Request upload URL
+
+↓
+
+Upload directly to Mux
+
+↓
+
+Show upload progress
+
+↓
+
+Wait for completion
+
+↓
+
+Show "Processing..."
+
+↓
+
+When ready:
+
+Save playback_id into lesson
+
+Status = Ready
+```
+
+The upload must go directly from the browser to Mux.
+
+The backend must NEVER receive the video file.
+
+---
+
+## 5. Webhook
+
+Create:
+
+```
+POST /api/mux/webhook
+```
+
+Verify webhook signature.
+
+Handle:
+
+video.asset.ready
+
+When received:
+
+Extract
+
+```
+asset_id
+playback_id
+duration
+```
+
+Update the lesson record.
+
+Set
+
+```
+video_status = ready
+```
+
+Also handle:
+
+```
+video.asset.errored
+```
+
+Set
+
+```
+video_status = failed
+```
+
+---
+
+## 6. Lesson API
+
+Modify lesson API response.
+
+Instead of returning local video URL, return:
+
+```
+{
+    "id": ...
+    "title": ...
+    "mux_playback_id": "...",
+    "video_status":"ready"
+}
+```
+
+If not ready:
+
+```
+video_status = processing
+```
+
+---
+
+## 7. Admin UI
+
+Display:
+
+Uploading...
+
+Processing...
+
+Ready
+
+Failed
+
+Show upload progress percentage.
+
+Allow replacing existing videos.
+
+When replacing:
+
+Delete old Mux asset.
+
+Upload new one.
+
+---
+
+## 8. Delete Lesson
+
+Deleting a lesson must also delete the Mux Asset.
+
+---
+
+## 9. Error Handling
+
+Retry failed uploads.
+
+Show meaningful error messages.
+
+Never expose Mux credentials.
+
+---
+
+## 10. Security
+
+Only authenticated admins may upload.
+
+Validate file type:
+
+mp4
+mov
+mkv
+
+Maximum size:
+
+10 GB
+
+---
+
+## 11. Code Quality
+
+Use the official Mux SDK.
+
+Create:
+
+* MuxService
+* MuxController
+* WebhookController
+
+Keep code modular.
+
+No duplicated code.
+
+Use async/await.
+
+Include logging.
+
+---
+
+## 12. Final Deliverables
+
+Implement the entire feature.
+
+Update database migrations.
+
+Update API routes.
+
+Update admin UI.
+
+Update lesson APIs.
+
+Provide complete working code.
+
+No placeholders.
+
+No TODOs.
+
+Everything should be production-ready.
