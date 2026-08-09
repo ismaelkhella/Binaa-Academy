@@ -270,14 +270,9 @@ class CommunitySocketService {
   // ---------------------------------------------------------------------------
 
   void _emitJoin(String subjectId) {
-    _socket!.emitWithAck('join', {'subjectId': subjectId}, ack: (response) {
-      // response يُمثّل { event: 'joined'|'error', data: {...} }
-      final data = response as Map<String, dynamic>?;
-      if (data?['event'] == 'error') {
-        // الخادم رفض الانضمام (لا اشتراك نشط مثلاً)
-        _setState(SocketConnectionState.error);
-      }
-    });
+    // ملاحظة: الخادم (NestJS) يرد على 'join' بحدث 'joined' عند النجاح
+    // أو بحدث 'error' (يحمل subjectId) عند الرفض — وليس عبر ack.
+    _socket!.emit('join', {'subjectId': subjectId});
   }
 
   void _onReconnected() {
@@ -332,8 +327,15 @@ class CommunitySocketService {
 
     if (isAuthError) {
       _refreshAndReconnect();
+      return;
     }
-    // أخطاء أخرى (مثل رفض الانضمام) تُعالج في _emitJoin عبر الـ ack.
+
+    // رفض الانضمام للغرفة (مثلاً لا اشتراك نشط أو مادة غير موجودة):
+    // يصل كحدث 'error' يحمل subjectId بدون code — الاتصال يبقى قائماً
+    // لكن لن تصل رسائل الغرفة، لذا نُعلم الـ UI بالحالة.
+    if (map?['subjectId'] != null) {
+      _setState(SocketConnectionState.error);
+    }
   }
 
   /// جدّد التوكن ثم أعد بناء الاتصال بالتوكن الجديد.
