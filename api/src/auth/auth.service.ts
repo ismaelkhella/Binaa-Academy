@@ -5,9 +5,9 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto, LoginDto, SetupProfileDto, AdminLoginDto, AdminChangePasswordDto } from './dto/auth.dto';
 import { Grade, Branch, PlanType } from '@prisma/client';
+import * as crypto from 'crypto';
 
 @Injectable()
-import * as crypto from 'crypto';
 export class AuthService {
   constructor(
     private prisma: PrismaService,
