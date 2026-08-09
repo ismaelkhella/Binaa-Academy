@@ -44,7 +44,7 @@ export class CommunityGateway implements OnGatewayConnection {
   handleConnection(client: AuthedSocket) {
     const token = this.extractToken(client);
     if (!token) {
-      client.emit('error', { message: 'مطلوب تسجيل الدخول' });
+      client.emit('error', { code: 'AUTH_REQUIRED', message: 'مطلوب تسجيل الدخول' });
       client.disconnect(true);
       return;
     }
@@ -52,8 +52,11 @@ export class CommunityGateway implements OnGatewayConnection {
       const payload = this.jwt.verify(token, { secret: this.config.get('JWT_SECRET') });
       if (payload.role !== 'STUDENT' && payload.role !== 'TEACHER') throw new Error('bad role');
       client.data.user = { sub: payload.sub, role: payload.role };
-    } catch {
-      client.emit('error', { message: 'جلسة غير صالحة' });
+    } catch (e: any) {
+      // TokenExpiredError => the client should refresh its token and reconnect.
+      // Any other verification failure is an invalid session.
+      const code = e?.name === 'TokenExpiredError' ? 'SESSION_EXPIRED' : 'SESSION_INVALID';
+      client.emit('error', { code, message: 'جلسة غير صالحة' });
       client.disconnect(true);
     }
   }
@@ -76,7 +79,7 @@ export class CommunityGateway implements OnGatewayConnection {
   ) {
     const user = client.data.user;
     const subjectId = body?.subjectId;
-    if (!user) return { event: 'error', data: { message: 'جلسة غير صالحة' } };
+    if (!user) return { event: 'error', data: { code: 'SESSION_INVALID', message: 'جلسة غير صالحة' } };
     if (!subjectId) return { event: 'error', data: { message: 'subjectId مطلوب' } };
     try {
       await this.community.checkAccess(user.sub, user.role, subjectId);

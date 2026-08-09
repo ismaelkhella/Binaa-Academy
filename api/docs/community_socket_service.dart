@@ -110,7 +110,12 @@ class MessageAttachment {
 }
 
 /// حالة الاتصال بالمقبس.
-enum SocketConnectionState { disconnected, connecting, connected, error }
+///
+/// [error] يعني خطأ شبكة أو رفض من الخادم (مثلاً لا اشتراك نشط) —
+/// الخدمة ستستمر بمحاولة إعادة الاتصال تلقائياً.
+/// [sessionExpired] يعني أن الجلسة انتهت ولم ينجح تجديد التوكن —
+/// يجب نقل الطالب إلى شاشة تسجيل الدخول (انظر [CommunitySocketService.onSessionExpired]).
+enum SocketConnectionState { disconnected, connecting, connected, error, sessionExpired }
 
 /// خدمة البث المباشر لمجتمع مادة واحدة.
 ///
@@ -140,10 +145,31 @@ class CommunitySocketService {
   /// تُستدعى عند تغيّر حالة الاتصال (اختياري، للـ UI).
   final void Function(SocketConnectionState state)? onStateChange;
 
+  /// تُستدعى لتجديد توكن الوصول عند انتهاء صلاحيته أثناء الجلسة.
+  ///
+  /// يجب أن تستدعي `POST /api/auth/refresh` (بجسم `{ "refreshToken": ... }`)
+  /// وتخزّن التوكنات الجديدة، ثم تُعيد `true` عند النجاح أو `false` عند الفشل
+  /// (مثلاً refresh token منتهٍ أو مرفوض). عند النجاح ستُعيد الخدمة الاتصال
+  /// تلقائياً بالتوكن الجديد (عبر [tokenProvider]).
+  ///
+  /// مثال:
+  ///   onRefreshToken: () => authService.tryRefreshTokens(),
+  final Future<bool> Function()? onRefreshToken;
+
+  /// تُستدعى عندما تنتهي الجلسة نهائياً (فشل تجديد التوكن).
+  ///
+  /// انقل الطالب هنا إلى شاشة تسجيل الدخول مع رسالة واضحة، مثلاً:
+  ///   onSessionExpired: () => navigator.goToLogin(
+  ///     message: 'انتهت جلستك، الرجاء تسجيل الدخول من جديد',
+  ///   ),
+  final void Function()? onSessionExpired;
+
   IO.Socket? _socket;
   String? _joinedSubjectId;
   DateTime? _lastMessageCreatedAt;
   SocketConnectionState _state = SocketConnectionState.disconnected;
+  bool _refreshing = false;
+  bool _disposed = false;
 
   CommunitySocketService({
     required this.baseUrl,
@@ -152,6 +178,8 @@ class CommunitySocketService {
     required this.onDeleted,
     required this.onFetchHistory,
     this.onStateChange,
+    this.onRefreshToken,
+    this.onSessionExpired,
   });
 
   SocketConnectionState get state => _state;
@@ -231,6 +259,7 @@ class CommunitySocketService {
   // ---------------------------------------------------------------------------
 
   void dispose() {
+    _disposed = true;
     leaveSubject();
     _socket?.dispose();
     _socket = null;
@@ -286,8 +315,62 @@ class CommunitySocketService {
   }
 
   void _handleServerError(dynamic data) {
-    // يمكنك إضافة تسجيل أو إظهار رسالة للمستخدم هنا
-    // مثال: logger.warning('CommunitySocket error: $data');
+    final map = _toMap(data);
+    final code = map?['code'] as String?;
+    final message = map?['message'] as String?;
+
+    // الخادم يقطع الاتصال بعد هذا الحدث عندما تكون الجلسة غير صالحة.
+    // SESSION_EXPIRED: التوكن انتهت صلاحيته — جدّده وأعد الاتصال.
+    // SESSION_INVALID / AUTH_REQUIRED: توكن تالف أو مفقود — جرّب التجديد أيضاً
+    //   (قد يكون التوكن المخزّن قديماً)، وإن فشل فالجلسة انتهت فعلاً.
+    // للتوافق مع خوادم أقدم لا تُرسل code: نتحقق من نص الرسالة.
+    final isAuthError = code == 'SESSION_EXPIRED' ||
+        code == 'SESSION_INVALID' ||
+        code == 'AUTH_REQUIRED' ||
+        message == 'جلسة غير صالحة' ||
+        message == 'مطلوب تسجيل الدخول';
+
+    if (isAuthError) {
+      _refreshAndReconnect();
+    }
+    // أخطاء أخرى (مثل رفض الانضمام) تُعالج في _emitJoin عبر الـ ack.
+  }
+
+  /// جدّد التوكن ثم أعد بناء الاتصال بالتوكن الجديد.
+  ///
+  /// إذا فشل التجديد (أو لم تُمرَّر [onRefreshToken]) تُعتبر الجلسة منتهية:
+  /// تنتقل الحالة إلى [SocketConnectionState.sessionExpired] ويُستدعى
+  /// [onSessionExpired] لنقل الطالب إلى شاشة تسجيل الدخول.
+  Future<void> _refreshAndReconnect() async {
+    if (_refreshing || _disposed) return;
+    _refreshing = true;
+
+    // أوقف إعادة الاتصال التلقائية بالتوكن القديم — ستفشل دائماً.
+    _socket?.dispose();
+    _socket = null;
+    _setState(SocketConnectionState.connecting);
+
+    try {
+      final refreshed = await (onRefreshToken?.call() ?? Future.value(false));
+      if (_disposed) return;
+
+      if (!refreshed) {
+        _setState(SocketConnectionState.sessionExpired);
+        onSessionExpired?.call();
+        return;
+      }
+
+      // نجح التجديد: أعد الاتصال — tokenProvider سيُعيد التوكن الجديد،
+      // و onConnect سيُعيد الانضمام للغرفة وجلب ما فات عبر _onReconnected().
+      await connect();
+    } catch (_) {
+      if (!_disposed) {
+        _setState(SocketConnectionState.sessionExpired);
+        onSessionExpired?.call();
+      }
+    } finally {
+      _refreshing = false;
+    }
   }
 
   Future<void> _fetchHistory(String subjectId, {DateTime? after}) async {
