@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Bina Academy API",
-    "description": "## نظرة عامة | Overview\n\nمجموعة الـ APIs الخاصة بمنصة **Bina Academy** لطلبة التوجيهي (الفرع العلمي والأدبي - الصف 11 و 12).\n\nAPI collection for **Bina Academy** tutoring platform (Tawjihi students - grades 11/12, scientific/literary branches).\n\n---\n\n### خصائص عامة | General Properties\n\n- جميع الردود JSON (`Content-Type: application/json`)\n- جميع أرقام الهواتف بالصيغة الفلسطينية `^05\\d{8}$` (مثال: `0591234567`)\n- التواريخ بصيغة ISO 8601\n- المصادقة بـ JWT Bearer (توكينات الطلاب 30 يوم، توكينات الإدمن 7 أيام)\n- الحد العام للطلبات: 100 طلب/دقيقة لكل IP (حسب `@nestjs/throttler`)\n\n### تدفّق العمل الموصى به | Recommended Mobile Flows\n\n1. **تسجيل طالب جديد**: POST `/auth/register` (الهاتف، كلمة المرور، الاسم الكامل، الصف، الفرع) → تصفح المواد مباشرة.\n2. **دخول طالب مسجل**: POST `/auth/login` (الهاتف وكلمة المرور) → تصفح المواد.\n3. **مشاهدة فيديو**: GET `/subjects/:id/videos` → GET `/videos/:id/stream` → POST `/videos/:id/mark-viewed`\n4. **إدمن**: POST `/auth/admin/login` → استعمل الـ token في كل endpoints الـ admin\n",
+    "description": "## نظرة عامة | Overview\n\nمجموعة الـ APIs الخاصة بمنصة **Bina Academy** لطلبة التوجيهي (الفرع العلمي والأدبي - الصف 11 و 12).\n\nAPI collection for **Bina Academy** tutoring platform (Tawjihi students - grades 11/12, scientific/literary branches).\n\n---\n\n### خصائص عامة | General Properties\n\n- جميع الردود JSON (`Content-Type: application/json`)\n- جميع أرقام الهواتف بالصيغة الفلسطينية `^05\\d{8}$` (مثال: `0591234567`)\n- التواريخ بصيغة ISO 8601\n- المصادقة بـ JWT Bearer (توكينات الطلاب 30 يوم، توكينات الإدمن 7 أيام)\n- الحد العام للطلبات: 100 طلب/دقيقة لكل IP (حسب `@nestjs/throttler`)\n\n### تدفّق العمل الموصى به | Recommended Mobile Flows\n\n1. **تسجيل طالب جديد**: POST `/auth/register` (الهاتف، كلمة المرور، الاسم الكامل، الصف، الفرع) → تصفح المواد مباشرة.\n2. **دخول طالب مسجل**: POST `/auth/login` (الهاتف وكلمة المرور) → تصفح المواد.\n3. **مشاهدة فيديو**: GET `/subjects/:id/videos` → GET `/videos/:id/stream` → POST `/videos/:id/mark-viewed`\n4. **إدمن**: POST `/auth/admin/login` → استعمل الـ token في كل endpoints الـ admin\n\n\n## البث المباشر (WebSocket)\nبالإضافة لنقاط REST، يوجد بث مباشر لرسائل المجتمع عبر Socket.IO:\n- **Namespace:** `/community` — مرر توكين الدخول في `auth.token` أو Authorization header عند الاتصال\n- **join** `{ subjectId }` — الانضمام لغرفة مادة (نفس صلاحيات REST)\n- **leave** `{ subjectId }` — مغادرة الغرفة\n- **message:new** — يُبث عند وصول رسالة جديدة (نفس شكل CommunityMessage)\n- **message:deleted** `{ id, subjectId }` — يُبث عند حذف الإدارة لرسالة",
     "version": "1.0.0",
     "contact": {
       "name": "Bina Academy Backend Team"
@@ -57,7 +57,7 @@
     },
     {
       "name": "Community",
-      "description": "مجتمع (دردشة جماعية) لكل مادة — للمعلم صاحب المادة والطلاب المشتركين | Per-subject group chat"
+      "description": "مجتمع (دردشة جماعية) لكل مادة — للمعلم صاحب المادة والطلاب المشتركين | Per-subject group chat — يدعم بثاً مباشراً عبر Socket.IO على namespace /community (أحداث: join, leave, message:new, message:deleted)"
     }
   ],
   "paths": {

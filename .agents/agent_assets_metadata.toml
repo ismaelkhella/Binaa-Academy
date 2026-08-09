@@ -6,7 +6,7 @@ id = "MqzqE3OcjJ-pT3XRmkK_m"
 uri = "file://api/docs/openapi.json"
 type = "unspecified"
 title = "مواصفات API كاملة (OpenAPI JSON)"
-description = "ملف JSON يشمل جميع نقاط الـ API — الدخول والتجديد، الطالب، المعلم، المجتمعات، والإدارة."
+description = "ملف JSON محدث بجميع نقاط الـ API + توثيق البث المباشر (Socket.IO) لرسائل المجتمع."
 
 [[outputs]]
 id = "YY8KlGR6cC5S4hD1Xboqs"
