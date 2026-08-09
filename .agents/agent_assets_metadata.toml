@@ -5,7 +5,8 @@ generated = []
 id = "MqzqE3OcjJ-pT3XRmkK_m"
 uri = "file://api/docs/openapi.json"
 type = "unspecified"
-title = "Bina Academy API — OpenAPI JSON"
+title = "مواصفات API كاملة (OpenAPI JSON)"
+description = "ملف JSON يشمل جميع نقاط الـ API — الدخول والتجديد، الطالب، المعلم، المجتمعات، والإدارة."
 
 [[outputs]]
 id = "YY8KlGR6cC5S4hD1Xboqs"
