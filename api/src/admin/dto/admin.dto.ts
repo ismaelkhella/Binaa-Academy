@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsEnum, IsNumber, IsBoolean, Min, IsArray, Matches, ValidateIf } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsNumber, IsBoolean, Min, IsArray, Matches, ValidateIf, MinLength, MaxLength } from 'class-validator';
 import { Grade, Branch, PlanType, VideoStatus } from '@prisma/client';
 
 export class ListStudentsQuery {
@@ -241,6 +241,25 @@ export class CreateTeacherDto {
   @IsOptional()
   @IsString()
   subjectId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  @MaxLength(30)
+  password?: string;
+}
+
+export class TeacherCredentialsDto {
+  @IsOptional()
+  @IsString()
+  @Matches(/^05\d{8}$/, { message: 'رقم الهاتف يجب أن يكون بصيغة 05XXXXXXXX' })
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  @MaxLength(30)
+  password?: string;
 }
 
 

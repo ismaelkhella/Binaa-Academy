@@ -16,6 +16,7 @@ import { PerformanceModule } from './performance/performance.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { CartModule } from './cart/cart.module';
 import { ChatModule } from './chat/chat.module';
+import { CommunityModule } from './community/community.module';
 import { MuxModule } from './mux/mux.module';
 
 @Module({
@@ -35,6 +36,7 @@ import { MuxModule } from './mux/mux.module';
     DashboardModule,
     CartModule,
     ChatModule,
+    CommunityModule,
     MuxModule,
   ],
   controllers: [AppController],

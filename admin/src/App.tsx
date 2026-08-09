@@ -6,6 +6,7 @@ import StudentsPage from './pages/StudentsPage';
 import VideosPage from './pages/VideosPage';
 import SubscriptionsPage from './pages/SubscriptionsPage';
 import TeachersPage from './pages/TeachersPage';
+import CommunityPage from './pages/CommunityPage';
 import SettingsPage from './pages/SettingsPage';
 import NotificationsPage from './pages/NotificationsPage';
 
@@ -32,6 +33,7 @@ export default function App() {
         <Route path="videos" element={<VideosPage />} />
         <Route path="subscriptions" element={<SubscriptionsPage />} />
         <Route path="teachers" element={<TeachersPage />} />
+        <Route path="community" element={<CommunityPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
       </Route>

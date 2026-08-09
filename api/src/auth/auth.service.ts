@@ -61,7 +61,8 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     const user = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
-    if (!user || user.role !== 'STUDENT') {
+    // Students and teachers log in here; admins use /auth/admin/login.
+    if (!user || (user.role !== 'STUDENT' && user.role !== 'TEACHER')) {
       throw new UnauthorizedException('رقم الهاتف أو كلمة المرور غير صحيحة');
     }
 
@@ -76,11 +77,20 @@ export class AuthService {
     const accessToken = this.signStudentToken(user.id, user.phone, user.role);
     const refreshToken = await this.createRefreshToken(user.id);
 
+    // For teachers, include the teacher profile so the app can route to the
+    // teacher home screen and show name/avatar without an extra request.
+    let teacher: { id: string; name: string; bio: string | null; avatarUrl: string | null } | null = null;
+    if (user.role === 'TEACHER') {
+      const t = await this.prisma.teacher.findUnique({ where: { userId: user.id } });
+      if (t) teacher = { id: t.id, name: t.name, bio: t.bio, avatarUrl: t.avatarUrl };
+    }
+
     return {
       accessToken,
       refreshToken,
       token: accessToken,
       user: this.sanitizeUser(user),
+      teacher,
     };
   }
 

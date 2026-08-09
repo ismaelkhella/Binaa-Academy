@@ -104,11 +104,25 @@ export const api = {
 
   getTeachersDashboard: () => request<TeachersDashboardData>('/admin/teachers/dashboard'),
 
-  createTeacher: (data: { name: string; phone: string; bio?: string; avatarUrl?: string; commissionRate?: number; subjectId?: string }) =>
+  createTeacher: (data: { name: string; phone: string; password?: string; bio?: string; avatarUrl?: string; commissionRate?: number; subjectId?: string }) =>
     request<any>('/admin/teachers', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  updateTeacherCredentials: (teacherId: string, data: { phone?: string; password?: string }) =>
+    request<{ success: boolean }>('/admin/teachers/' + teacherId + '/credentials', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  getCommunityMessages: (subjectId: string, before?: string) => {
+    const qs = before ? '?before=' + encodeURIComponent(before) : '';
+    return request<CommunityMessage[]>('/admin/community/' + subjectId + '/messages' + qs);
+  },
+
+  deleteCommunityMessage: (messageId: string) =>
+    request<{ success: boolean }>('/admin/community/messages/' + messageId, { method: 'DELETE' }),
 
   /** Ask the API for a Mux direct-upload URL (file goes straight from the browser to Mux). */
   createMuxUpload: () =>
@@ -369,6 +383,16 @@ export interface Teacher {
   rating?: number;
   status?: string;
   avatar?: string;
+}
+
+export interface CommunityMessage {
+  id: string;
+  subjectId: string;
+  type: string; // text | image | file | voice
+  content: string | null;
+  createdAt: string;
+  sender: { id: string; role: string; name: string; avatarUrl: string | null };
+  attachment: { id: string; fileName: string; mimeType: string; size: number; url: string } | null;
 }
 
 export interface TeachersDashboardData {
