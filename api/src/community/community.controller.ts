@@ -19,6 +19,24 @@ import { CommunityService, MAX_ATTACHMENT_BYTES, safeServeHeaders } from './comm
 import { CommunityGateway } from './community.gateway';
 import { UserJwtGuard, AdminJwtGuard } from '../auth/guards/jwt.guard';
 
+/** Streams from object storage; legacy rows (bytes still in the DB) are buffered as a fallback. */
+async function serveAttachment(
+  community: CommunityService,
+  a: { id: string; storageKey: string | null },
+  res: Response,
+) {
+  const source = community.streamAttachment(a);
+  if (source.kind === 'stream') {
+    source.stream.on('error', () => {
+      if (!res.headersSent) res.status(502);
+      res.end();
+    });
+    source.stream.pipe(res);
+  } else {
+    res.send(await community.getLegacyAttachmentData(a.id));
+  }
+}
+
 @Controller('community')
 @UseGuards(UserJwtGuard)
 export class CommunityController {
@@ -38,7 +56,7 @@ export class CommunityController {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(a.fileName)}`);
     res.setHeader('Cache-Control', 'private, max-age=86400');
-    res.send(Buffer.from(a.data));
+    await serveAttachment(this.community, a, res);
   }
 
   @Get(':subjectId/messages')
@@ -89,7 +107,7 @@ export class AdminCommunityController {
     res.setHeader('Content-Length', String(a.size));
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(a.fileName)}`);
-    res.send(Buffer.from(a.data));
+    await serveAttachment(this.community, a, res);
   }
 
   @Delete('messages/:id')

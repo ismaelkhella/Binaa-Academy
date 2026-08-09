@@ -122,9 +122,10 @@ model CommunityAttachment {
   messageId String   @unique @map("message_id")
   fileName  String   @map("file_name")
   mimeType  String   @map("mime_type")
-  size      Int
-  data      Bytes
-  createdAt DateTime @default(now()) @map("created_at")
+  size       Int
+  data       Bytes?
+  storageKey String?  @map("storage_key")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   message CommunityMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
 

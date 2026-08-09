@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ObjectStorageService } from './object-storage.service';
 import { UserRole } from '@prisma/client';
 
 // Subjects unlocked for TRIAL subscribers — keep in sync with chat.service.ts
@@ -47,7 +48,7 @@ export function safeServeHeaders(mimeType: string): { contentType: string; dispo
 
 @Injectable()
 export class CommunityService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private storage: ObjectStorageService) {}
 
   /** Subjects whose community the caller may access. */
   async listSubjects(userId: string, role: string) {
@@ -169,31 +170,45 @@ export class CommunityService {
       }
     }
 
-    const message = await this.prisma.communityMessage.create({
-      data: {
-        subjectId,
-        senderUserId: userId,
-        senderRole: role as UserRole,
-        type: msgType,
-        content: text,
-        ...(file
-          ? {
-              attachment: {
-                create: {
-                  fileName: file.originalname || 'attachment',
-                  mimeType: file.mimetype,
-                  size: file.size,
-                  data: new Uint8Array(file.buffer),
+    // Binary goes to object storage; the DB row keeps only metadata + key.
+    let storageKey: string | null = null;
+    if (file) {
+      storageKey = this.storage.buildAttachmentKey(file.originalname || 'attachment');
+      await this.storage.upload(storageKey, file.buffer);
+    }
+
+    let message;
+    try {
+      message = await this.prisma.communityMessage.create({
+        data: {
+          subjectId,
+          senderUserId: userId,
+          senderRole: role as UserRole,
+          type: msgType,
+          content: text,
+          ...(file && storageKey
+            ? {
+                attachment: {
+                  create: {
+                    fileName: file.originalname || 'attachment',
+                    mimeType: file.mimetype,
+                    size: file.size,
+                    storageKey,
+                  },
                 },
-              },
-            }
-          : {}),
-      },
-      include: {
-        sender: { select: { id: true, name: true, role: true, teacher: { select: { name: true, avatarUrl: true } } } },
-        attachment: { select: { id: true, fileName: true, mimeType: true, size: true } },
-      },
-    });
+              }
+            : {}),
+        },
+        include: {
+          sender: { select: { id: true, name: true, role: true, teacher: { select: { name: true, avatarUrl: true } } } },
+          attachment: { select: { id: true, fileName: true, mimeType: true, size: true } },
+        },
+      });
+    } catch (e) {
+      // Don't leak an orphaned object if the DB write failed.
+      if (storageKey) await this.storage.deleteQuietly(storageKey);
+      throw e;
+    }
 
     return this.serialize(message);
   }
@@ -207,11 +222,36 @@ export class CommunityService {
   async getAttachment(userId: string, role: string, attachmentId: string) {
     const attachment = await this.prisma.communityAttachment.findUnique({
       where: { id: attachmentId },
-      include: { message: { select: { subjectId: true } } },
+      select: {
+        id: true,
+        fileName: true,
+        mimeType: true,
+        size: true,
+        storageKey: true,
+        message: { select: { subjectId: true } },
+      },
     });
     if (!attachment) throw new NotFoundException('المرفق غير موجود');
     await this.assertAccess(userId, role, attachment.message.subjectId);
     return attachment;
+  }
+
+  /** Legacy fallback: rows created before object storage keep bytes in the DB. */
+  async getLegacyAttachmentData(attachmentId: string): Promise<Buffer> {
+    const row = await this.prisma.communityAttachment.findUnique({
+      where: { id: attachmentId },
+      select: { data: true },
+    });
+    if (!row?.data) throw new NotFoundException('المرفق غير موجود');
+    return Buffer.from(row.data);
+  }
+
+  /** Streams from object storage, or falls back to legacy DB bytes. */
+  streamAttachment(a: { id: string; storageKey: string | null }) {
+    if (a.storageKey) {
+      return { kind: 'stream' as const, stream: this.storage.downloadStream(a.storageKey) };
+    }
+    return { kind: 'legacy' as const };
   }
 
   // ---- Admin moderation ----
@@ -231,15 +271,22 @@ export class CommunityService {
   }
 
   async adminGetAttachment(attachmentId: string) {
-    const attachment = await this.prisma.communityAttachment.findUnique({ where: { id: attachmentId } });
+    const attachment = await this.prisma.communityAttachment.findUnique({
+      where: { id: attachmentId },
+      select: { id: true, fileName: true, mimeType: true, size: true, storageKey: true },
+    });
     if (!attachment) throw new NotFoundException('المرفق غير موجود');
     return attachment;
   }
 
   async adminDeleteMessage(messageId: string) {
-    const msg = await this.prisma.communityMessage.findUnique({ where: { id: messageId } });
+    const msg = await this.prisma.communityMessage.findUnique({
+      where: { id: messageId },
+      include: { attachment: { select: { storageKey: true } } },
+    });
     if (!msg) throw new NotFoundException('الرسالة غير موجودة');
     await this.prisma.communityMessage.delete({ where: { id: messageId } });
+    if (msg.attachment?.storageKey) await this.storage.deleteQuietly(msg.attachment.storageKey);
     return { success: true, subjectId: msg.subjectId };
   }
 
