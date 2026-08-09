@@ -140,6 +140,8 @@ export class SubjectsService {
           orderInUnit: v.orderInUnit,
           pdfUrl: v.pdfUrl,
           locked,
+          mux_playback_id: v.muxPlaybackId ?? '',
+          video_status: v.videoStatus === 'ready' ? 'ready' : 'processing',
         };
       }),
       quota: isSubscribed ? subject.videos.length : (isTrialUnlocked ? trialQuota : 0),

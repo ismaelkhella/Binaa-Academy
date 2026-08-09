@@ -98,6 +98,13 @@ async function bootstrap() {
     });
   }
 
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    res.on('finish', () => {
+      console.log(`[HTTP] ${req.method} ${req.originalUrl} - Status: ${res.statusCode}`);
+    });
+    next();
+  });
+
   app.setGlobalPrefix('api');
   // CORS: explicit origins from env only. In production the admin panel is
   // served same-origin (no CORS needed) and native mobile apps don't enforce

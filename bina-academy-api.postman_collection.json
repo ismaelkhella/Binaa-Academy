@@ -245,6 +245,20 @@
             "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
             "description": "يولّد توكين تنزيل للمشاهدة بدون إنترنت.\n\n⚠️ احفظ expiresAt محلياً واطلب توكيناً جديداً قبل انتهائه.\nصالح 7 أيام افتراضياً (من DB).\n\n403 إذا الفيديو خارج الحصة أو لا اشتراك فعّال."
           }
+        },
+        {
+          "name": "تفاصيل ومسار التحميل المباشر Mux Direct Download",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/videos/:id/download",
+              "host": ["{{base_url}}"],
+              "path": ["videos", ":id", "download"],
+              "variable": [{ "key": "id", "value": "VIDEO_ID_HERE" }]
+            },
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "description": "يعود برابط التحميل المباشر للملف (MP4) والبيانات اللازمة لحفظ وتشغيل الفيديو أوفلاين في التطبيق.\n\nيعود بـ:\n• playbackId\n• streamingUrl\n• downloadUrl\n• downloadAvailable\n• downloadFilename"
+          }
         }
       ]
     },
@@ -646,6 +660,31 @@
                   ]
                 },
                 "description": "يعود بـ: { \"url\": \"/uploads/filename.ext\" }\n\nاستخدم هذا الـ URL في:\n• streamUrl عند إنشاء/تعديل فيديو\n• pdfUrl\n• avatarUrl عند إضافة معلم"
+              }
+            },
+            {
+              "name": "إنشاء رابط رفع Mux (Direct Upload)",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/mux/create-upload",
+                "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                "description": "يُنشئ رابط رفع مباشر إلى خوادم Mux للحصول على upload_id و upload_url. يحتاج توكين الإدمن."
+              }
+            },
+            {
+              "name": "ويب هوك Mux (Webhook)",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/mux/webhook",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Mux-Signature", "value": "t=timestamp,v1=signature" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"type\": \"video.asset.ready\",\n  \"data\": {\n    \"id\": \"mock_asset_id\",\n    \"upload_id\": \"test_upload_id\",\n    \"playback_ids\": [{ \"policy\": \"public\", \"id\": \"mock_playback_id\" }],\n    \"duration\": 345.67\n  }\n}"
+                },
+                "description": "يستقبل إشعارات Mux عند اكتمال معالجة الفيديو. يتم التحقق من التوقيع الممرر في الرأس."
               }
             }
           ]

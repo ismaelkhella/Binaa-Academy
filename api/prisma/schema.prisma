@@ -116,6 +116,13 @@ model Video {
   muxPlaybackId String?   @map("mux_playback_id")
   // none = external URL video, uploading/processing/ready/failed = Mux lifecycle
   videoStatus   String    @default("none") @map("video_status")
+  videoDuration Int?      @map("video_duration")
+  muxStatus         String?     @map("mux_status")
+  muxDuration       Float?      @map("mux_duration")
+  muxThumbnail      String?     @map("mux_thumbnail")
+  muxStaticMp4Name  String?     @map("mux_static_mp4_name")
+  offlineAvailable  Boolean     @default(false) @map("offline_available")
+  videoSize         Int?        @map("video_size")
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 

@@ -87,6 +87,11 @@ export class AdminController {
     return this.adminService.deleteVideo(id);
   }
 
+  @Post('videos/:id/retry')
+  retryVideo(@Param('id') id: string) {
+    return this.adminService.retryVideoUpload(id);
+  }
+
   @Get('subjects')
   listSubjects() {
     return this.adminService.listSubjects();

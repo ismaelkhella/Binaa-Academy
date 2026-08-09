@@ -335,7 +335,13 @@ export class AdminService {
         data.muxAssetId = null;
         data.muxPlaybackId = null;
         data.videoStatus = 'processing';
+        data.muxStatus = 'processing';
         data.streamUrl = null;
+        data.muxDuration = null;
+        data.muxThumbnail = null;
+        data.muxStaticMp4Name = null;
+        data.offlineAvailable = false;
+        data.videoSize = null;
       }
     } else if (
       videoData.streamUrl &&
@@ -348,6 +354,12 @@ export class AdminService {
       data.muxAssetId = null;
       data.muxPlaybackId = null;
       data.videoStatus = 'none';
+      data.muxStatus = null;
+      data.muxDuration = null;
+      data.muxThumbnail = null;
+      data.muxStaticMp4Name = null;
+      data.offlineAvailable = false;
+      data.videoSize = null;
     }
     const video = await this.prisma.video.update({ where: { id }, data: data as any });
     if (questions) {
@@ -374,9 +386,47 @@ export class AdminService {
     // Hard deletion cascades to VideoView records (student watch history),
     // permanently erasing student data. Setting DRAFT hides the video from
     // students (only PUBLISHED videos are visible) while preserving history.
+    const existing = await this.prisma.video.findUnique({
+      where: { id },
+      select: { muxAssetId: true },
+    });
+    if (existing?.muxAssetId) {
+      await this.muxService.deleteAsset(existing.muxAssetId);
+    }
     return this.prisma.video.update({
       where: { id },
-      data: { status: 'DRAFT' },
+      data: {
+        status: 'DRAFT',
+        muxAssetId: null,
+        muxPlaybackId: null,
+        muxUploadId: null,
+        videoStatus: 'none',
+        muxStatus: null,
+        muxDuration: null,
+        muxThumbnail: null,
+        muxStaticMp4Name: null,
+        offlineAvailable: false,
+        videoSize: null,
+      },
+    });
+  }
+
+  async retryVideoUpload(id: string) {
+    const video = await this.prisma.video.findUnique({
+      where: { id },
+    });
+    if (!video) throw new NotFoundException('الفيديو غير موجود');
+
+    if (video.muxAssetId) {
+      await this.muxService.syncAssetStatus(video.muxAssetId, video.id);
+    } else if (video.muxUploadId) {
+      await this.muxService.syncUploadStatus(video.muxUploadId, video.id);
+    } else {
+      throw new BadRequestException('لا يوجد معرف رفع أو معرف أصل لإعادة المحاولة');
+    }
+
+    return this.prisma.video.findUnique({
+      where: { id },
     });
   }
 

@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlanType } from '@prisma/client';
+import { MuxService } from '../mux/mux.service';
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -10,7 +11,12 @@ function formatTime(seconds: number): string {
 
 @Injectable()
 export class VideosService {
-  constructor(private prisma: PrismaService) { }
+  private readonly logger = new Logger(VideosService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private muxService: MuxService,
+  ) { }
 
   async getLessonDetails(videoId: string, userId: string) {
     const video = await this.prisma.video.findUnique({
@@ -114,6 +120,8 @@ export class VideosService {
         subHeader,
         teacherName: video.teacher?.name ?? null,
         dailyQuizId: quiz?.id ?? null,
+        mux_playback_id: video.muxPlaybackId ?? '',
+        video_status: video.videoStatus === 'ready' ? 'ready' : 'processing',
       },
       chapters,
       relatedVideos,
@@ -227,15 +235,72 @@ export class VideosService {
     };
   }
 
-  async getDownloadToken(videoId: string, userId: string) {
+  async getDownloadDetails(videoId: string, userId: string) {
     const video = await this.prisma.video.findUnique({ where: { id: videoId } });
     if (!video) throw new NotFoundException('الفيديو غير موجود');
 
     await this.ensureAccess(video.subjectId, userId, videoId);
 
+    const playbackId = video.muxPlaybackId || null;
+    const streamingUrl = video.streamUrl || null;
+
+    // Sanitizing video title to yield a clean alphanumeric/Arabic file name
+    const sanitizedTitle = video.title.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '_');
+    const downloadFilename = `${sanitizedTitle || videoId}.mp4`;
+
+    let downloadUrl: string | null = null;
+    let downloadAvailable = false;
+    let renditionName: string | null = null;
+
+    if (video.muxAssetId && video.videoStatus === 'ready') {
+      try {
+        const details = await this.muxService.getAssetMp4Details(video.muxAssetId);
+        if (details.available && details.renditionName) {
+          renditionName = details.renditionName;
+          const policy = await this.muxService.getPlaybackPolicy(video.muxAssetId);
+          if (playbackId && policy === 'signed') {
+            const token = await this.muxService.generateSignedDownloadToken(playbackId, renditionName, downloadFilename);
+            downloadUrl = `https://stream.mux.com/${playbackId}/${renditionName}?token=${token}&download=${downloadFilename}`;
+          } else if (playbackId) {
+            downloadUrl = `https://stream.mux.com/${playbackId}/${renditionName}?download=${downloadFilename}`;
+          }
+          if (playbackId) {
+            downloadAvailable = true;
+          }
+          this.logger.log(
+            `Selected download URL: ${downloadUrl}, playbackId: ${playbackId}, rendition name: ${renditionName}`
+          );
+        } else {
+          this.logger.warn(`MP4 rendition is not ready for asset ${video.muxAssetId} of video ${videoId}`);
+        }
+      } catch (err) {
+        this.logger.error(`Failed to fetch MP4 renditions from Mux for video ${videoId}: ${(err as Error).message}`);
+      }
+    }
+
+    // Fallback to legacy local video files if there's no Mux asset ID but the local URL is an MP4
+    if (!video.muxAssetId && video.streamUrl && video.streamUrl.endsWith('.mp4')) {
+      downloadUrl = video.streamUrl;
+      downloadAvailable = true;
+      renditionName = 'local';
+    }
+
+    return {
+      playbackId,
+      streamingUrl,
+      downloadUrl,
+      downloadAvailable,
+      downloadFilename,
+    };
+  }
+
+  async getDownloadToken(videoId: string, userId: string) {
+    const video = await this.prisma.video.findUnique({ where: { id: videoId } });
+    if (!video) throw new NotFoundException('الفيديو غير موجود');
+    const details = await this.getDownloadDetails(videoId, userId);
     const expiresAt = new Date(Date.now() + video.downloadDays * 24 * 60 * 60 * 1000);
     return {
-      token: `offline_${videoId}_${userId}_${Date.now()}`,
+      token: details.downloadUrl || `offline_${videoId}_${userId}_${Date.now()}`,
       expiresAt,
       downloadDays: video.downloadDays,
     };
@@ -288,6 +353,144 @@ export class VideosService {
       if (index === -1 || index >= trialQuota) {
         throw new ForbiddenException('هذا الفيديو غير متاح في التجربة المجانية');
       }
+    }
+  }
+
+  async getLessonsList(userId: string) {
+    const videos = await this.prisma.video.findMany({
+      where: { status: 'PUBLISHED' },
+      include: { subject: true },
+    });
+
+    const results = [];
+    for (const video of videos) {
+      const canWatch = await this.checkWatchAccess(video.subjectId, userId, video.id);
+      const canDownload = canWatch && (video.offlineAvailable === true) && await this.checkDownloadAccess(video.subjectId, userId);
+
+      const playbackId = video.muxPlaybackId || '';
+      const thumbnail = video.muxThumbnail || (playbackId ? `https://image.mux.com/${playbackId}/thumbnail.jpg` : '');
+
+      results.push({
+        title: video.title,
+        thumbnail,
+        duration: video.durationSec || (video.muxDuration ? Math.round(video.muxDuration) : 0),
+        canDownload,
+        canWatch,
+        // Compatibility keys
+        "Playback URL": playbackId ? `https://stream.mux.com/${playbackId}.m3u8` : '',
+        "Thumbnail": thumbnail,
+        "Duration": video.durationSec || (video.muxDuration ? Math.round(video.muxDuration) : 0),
+        "Offline Available": video.offlineAvailable,
+      });
+    }
+
+    return results;
+  }
+
+  async getLessonDetailsSecure(videoId: string, userId: string) {
+    const video = await this.prisma.video.findUnique({
+      where: { id: videoId },
+      include: { subject: true },
+    });
+
+    if (!video || video.status !== 'PUBLISHED') {
+      throw new NotFoundException('الدرس غير موجود');
+    }
+
+    // Validate access
+    await this.ensureAccess(video.subjectId, userId, videoId);
+
+    const playbackId = video.muxPlaybackId || '';
+    const playbackUrl = playbackId ? `https://stream.mux.com/${playbackId}.m3u8` : '';
+    const thumbnail = video.muxThumbnail || (playbackId ? `https://image.mux.com/${playbackId}/thumbnail.jpg` : '');
+
+    // Log the playback request
+    this.logger.log(`Playback request: user ${userId} requested streaming for video ${videoId}`);
+
+    return {
+      playbackUrl,
+      thumbnail,
+      duration: video.durationSec || (video.muxDuration ? Math.round(video.muxDuration) : 0),
+      offlineAvailable: video.offlineAvailable,
+      // Compatibility keys
+      "Playback URL": playbackUrl,
+      "Thumbnail": thumbnail,
+      "Duration": video.durationSec || (video.muxDuration ? Math.round(video.muxDuration) : 0),
+      "Offline Available": video.offlineAvailable,
+    };
+  }
+
+  async generateSecureDownloadUrl(videoId: string, userId: string) {
+    const video = await this.prisma.video.findUnique({
+      where: { id: videoId },
+      include: { subject: true },
+    });
+
+    if (!video || video.status !== 'PUBLISHED') {
+      throw new NotFoundException('الدرس غير موجود');
+    }
+
+    // Verify course ownership (must be paid enrolled user)
+    const isEnrolled = await this.checkDownloadAccess(video.subjectId, userId);
+    if (!isEnrolled) {
+      this.logger.warn(`Download access denied: user ${userId} is not enrolled in subject ${video.subjectId}`);
+      throw new ForbiddenException('يجب الاشتراك في المادة لتنزيل الفيديو');
+    }
+
+    if (!video.offlineAvailable || !video.muxAssetId || !video.muxPlaybackId) {
+      throw new BadRequestException('الفيديو غير متاح للتنزيل حالياً');
+    }
+
+    // Log the download request
+    this.logger.log(`Download request: user ${userId} requested download for video ${videoId}`);
+
+    const playbackId = video.muxPlaybackId;
+    const renditionName = video.muxStaticMp4Name || 'highest.mp4';
+    const sanitizedTitle = video.title.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '_');
+    const downloadFilename = `${sanitizedTitle || videoId}.mp4`;
+
+    // Always generate a signed token with 10-minute expiration
+    const token = await this.muxService.generateSignedDownloadTokenWithExp(
+      playbackId,
+      renditionName,
+      downloadFilename,
+      '10m', // 10 minutes expiration
+    );
+
+    const downloadUrl = `https://stream.mux.com/${playbackId}/${renditionName}?token=${token}&download=${downloadFilename}`;
+
+    return {
+      downloadUrl,
+      "Download URL": downloadUrl,
+    };
+  }
+
+  async checkWatchAccess(subjectId: string, userId: string, videoId: string): Promise<boolean> {
+    try {
+      await this.ensureAccess(subjectId, userId, videoId);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async checkDownloadAccess(subjectId: string, userId: string): Promise<boolean> {
+    try {
+      const activeSubs = await this.prisma.subscription.findMany({
+        where: { userId, isActive: true, isFrozen: false, endDate: { gt: new Date() } },
+        include: { plan: true, subjects: true },
+      });
+
+      if (activeSubs.length === 0) return false;
+
+      // Verify the user has a paid subscription (not PlanType.TRIAL) covering the subject
+      const hasPaidSubForSubject = activeSubs.some(
+        (sub) => sub.plan.type !== PlanType.TRIAL && sub.subjects.some((ss) => ss.subjectId === subjectId)
+      );
+
+      return hasPaidSubForSubject;
+    } catch {
+      return false;
     }
   }
 }

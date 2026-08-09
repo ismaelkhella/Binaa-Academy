@@ -81,6 +81,9 @@ export const api = {
   deleteVideo: (id: string) =>
     request('/admin/videos/' + id, { method: 'DELETE' }),
 
+  retryVideoUpload: (id: string) =>
+    request<Video>('/admin/videos/' + id + '/retry', { method: 'POST' }),
+
   getSubjects: () => request<Subject[]>('/admin/subjects'),
 
   createSubject: (data: { name: string; grade: string; branch: string; priceIls?: number; teacherId?: string }) =>
@@ -312,6 +315,12 @@ export interface Video {
   muxPlaybackId?: string | null;
   /** none | uploading | processing | ready | failed */
   videoStatus?: string;
+  muxStatus?: string | null;
+  muxDuration?: number | null;
+  muxThumbnail?: string | null;
+  muxStaticMp4Name?: string | null;
+  offlineAvailable?: boolean;
+  videoSize?: number | null;
 }
 
 export interface CreateVideoInput {

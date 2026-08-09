@@ -29,4 +29,10 @@ export class VideosController {
   getDownloadToken(@Param('id') id: string, @Req() req: { user: { sub: string } }) {
     return this.videosService.getDownloadToken(id, req.user.sub);
   }
+
+  @Get(':id/download')
+  @UseGuards(StudentJwtGuard)
+  getDownloadDetails(@Param('id') id: string, @Req() req: { user: { sub: string } }) {
+    return this.videosService.getDownloadDetails(id, req.user.sub);
+  }
 }

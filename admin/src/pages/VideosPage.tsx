@@ -18,11 +18,11 @@ const GRADE_GROUPS = [
   { key: 'GRADE_12__LITERARY',  grade: 'GRADE_12' as const, branch: 'LITERARY'  as const, label: 'الثاني عشر — الأدبي', icon: '✍️', color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
 ];
 
-const VIDEO_EXTENSIONS = /\.(mp4|mov|mkv|webm|m4v)$/i;
+const VIDEO_EXTENSIONS = /\.(mp4|mov|mkv)$/i;
 const MAX_VIDEO_BYTES = 10 * 1024 * 1024 * 1024; // 10GB (Mux direct upload limit we enforce)
 
 function validateVideoFile(file: File): string | null {
-  if (!VIDEO_EXTENSIONS.test(file.name)) return 'صيغة الملف غير مدعومة — الرجاء اختيار ملف فيديو (mp4, mov, mkv, webm)';
+  if (!VIDEO_EXTENSIONS.test(file.name)) return 'صيغة الملف غير مدعومة — الرجاء اختيار ملف فيديو (mp4, mov, mkv)';
   if (file.size > MAX_VIDEO_BYTES) return 'حجم الملف يتجاوز الحد الأقصى (10 جيجابايت)';
   return null;
 }
@@ -491,13 +491,51 @@ export default function VideosPage() {
                         {idx + 1}
                       </div>
 
+                      {/* Video Thumbnail */}
+                      {(() => {
+                        const pbId = v.muxPlaybackId || '';
+                        const thumbUrl = v.muxThumbnail || (pbId ? `https://image.mux.com/${pbId}/thumbnail.jpg` : '');
+                        return thumbUrl ? (
+                          <img
+                            src={thumbUrl}
+                            alt={v.title}
+                            style={{
+                              width: '100px',
+                              height: '56px',
+                              borderRadius: '6px',
+                              objectFit: 'cover',
+                              border: '1px solid #e2e8f0',
+                              flexShrink: 0
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: '100px',
+                              height: '56px',
+                              borderRadius: '6px',
+                              background: '#f1f5f9',
+                              border: '1px solid #e2e8f0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#94a3b8',
+                              fontSize: '1rem',
+                              flexShrink: 0
+                            }}
+                          >
+                            📺
+                          </div>
+                        );
+                      })()}
+
                       {/* Title & meta */}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a', marginBottom: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           🎬 {v.title}
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', fontSize: '0.78rem', color: '#64748b' }}>
-                          <span>⏱ {formatDuration(v.durationSec)}</span>
+                          <span>⏱ {formatDuration(v.muxDuration ? Math.round(v.muxDuration) : v.durationSec)}</span>
                           <span>👁 {v._count.videoViews} مشاهدة</span>
                           {v.pdfUrl && (
                             <a href={v.pdfUrl} target="_blank" rel="noreferrer"
@@ -509,50 +547,87 @@ export default function VideosPage() {
                         </div>
                       </div>
 
-                      {/* Video processing status (Mux uploads) */}
-                      {v.videoStatus === 'processing' && (
-                        <span className="badge badge-muted" style={{ flexShrink: 0, background: '#fef3c7', color: '#92400e' }}>
-                          ⏳ قيد المعالجة
+                      {/* Badges */}
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', flexShrink: 0 }}>
+                        <span className={`badge ${v.status === 'PUBLISHED' ? 'badge-success' : 'badge-muted'}`}>
+                          {v.status === 'PUBLISHED' ? 'منشور' : 'مسودة'}
                         </span>
-                      )}
-                      {v.videoStatus === 'failed' && (
-                        <span className="badge badge-muted" style={{ flexShrink: 0, background: '#fee2e2', color: '#b91c1c' }}>
-                          ⚠️ فشلت المعالجة
-                        </span>
-                      )}
+                      </div>
 
-                      {/* Status badge */}
-                      <span className={`badge ${v.status === 'PUBLISHED' ? 'badge-success' : 'badge-muted'}`} style={{ flexShrink: 0 }}>
-                        {v.status === 'PUBLISHED' ? 'منشور' : 'مسودة'}
-                      </span>
+                      {/* Actions */}
+                      <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                        {/* Retry / Sync button */}
+                        {v.videoStatus !== 'none' && (
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', borderRadius: '7px', color: '#2563eb', borderColor: '#bfdbfe', background: '#eff6ff' }}
+                            onClick={async () => {
+                              try {
+                                await api.retryVideoUpload(v.id);
+                                load();
+                                alert('تم تحديث حالة المعالجة ومزامنة البيانات');
+                              } catch (err) {
+                                alert('فشل تحديث الحالة: ' + (err as Error).message);
+                              }
+                            }}
+                          >
+                            🔄 تحديث
+                          </button>
+                        )}
 
-                      {/* Edit */}
-                      <button
-                        className="btn-secondary"
-                        style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', borderRadius: '7px', flexShrink: 0 }}
-                        onClick={() => openEditModal(v)}
-                      >
-                        ✏️ تعديل
-                      </button>
-
-                      {/* Archive (soft-delete — hides from students, keeps watch history) */}
-                      {v.status === 'PUBLISHED' ? (
+                        {/* Replace / Edit */}
                         <button
-                          className="btn-danger"
-                          style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', borderRadius: '7px', flexShrink: 0 }}
-                          onClick={() => handleArchive(v.id)}
+                          type="button"
+                          className="btn-secondary"
+                          style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', borderRadius: '7px', color: '#0284c7', borderColor: '#bae6fd', background: '#f0f9ff' }}
+                          onClick={() => openEditModal(v)}
                         >
-                          إخفاء
+                          ✏️ تعديل / استبدال
                         </button>
-                      ) : (
-                        <button
-                          className="btn-primary"
-                          style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', borderRadius: '7px', flexShrink: 0 }}
-                          onClick={async () => { await api.updateVideo(v.id, { status: 'PUBLISHED' }); load(); }}
-                        >
-                          نشر
-                        </button>
-                      )}
+
+                        {/* Delete Video (Mux asset reset) */}
+                        {v.muxAssetId && (
+                          <button
+                            type="button"
+                            className="btn-danger"
+                            style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', borderRadius: '7px', background: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5' }}
+                            onClick={async () => {
+                              if (confirm('هل أنت متأكد من حذف محتوى الفيديو نهائياً؟ سيتم حذف الملف من Mux ومسح البيانات، مع الاحتفاظ بسجل مشاهدات الطلاب.')) {
+                                try {
+                                  await api.deleteVideo(v.id);
+                                  load();
+                                  alert('تم حذف محتوى الفيديو بنجاح');
+                                } catch (err) {
+                                  alert('فشل الحذف: ' + (err as Error).message);
+                                }
+                              }
+                            }}
+                          >
+                            🗑️ حذف الفيديو
+                          </button>
+                        )}
+
+                        {/* Soft-Archive (hides from students) */}
+                        {v.status === 'PUBLISHED' ? (
+                          <button
+                            type="button"
+                            className="btn-danger"
+                            style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', borderRadius: '7px' }}
+                            onClick={() => handleArchive(v.id)}
+                          >
+                            إخفاء
+                          </button>
+                        ) : (
+                          <button
+                            className="btn-primary"
+                            style={{ padding: '0.3rem 0.65rem', fontSize: '0.75rem', borderRadius: '7px' }}
+                            onClick={async () => { await api.updateVideo(v.id, { status: 'PUBLISHED' }); load(); }}
+                          >
+                            نشر
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
