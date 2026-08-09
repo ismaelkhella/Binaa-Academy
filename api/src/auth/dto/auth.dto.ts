@@ -64,3 +64,8 @@ export class UpdateParentPhoneDto {
   @Matches(/^05\d{8}$/)
   parentPhone!: string;
 }
+
+export class RefreshTokenDto {
+  @IsString()
+  refreshToken!: string;
+}
