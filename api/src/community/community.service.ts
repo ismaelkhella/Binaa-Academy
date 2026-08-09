@@ -93,6 +93,11 @@ export class CommunityService {
     return ids;
   }
 
+  /** Public wrapper so the WebSocket gateway enforces the same access rules as REST. */
+  async checkAccess(userId: string, role: string, subjectId: string) {
+    return this.assertAccess(userId, role, subjectId);
+  }
+
   private async assertAccess(userId: string, role: string, subjectId: string) {
     const subject = await this.prisma.subject.findUnique({
       where: { id: subjectId },
@@ -235,7 +240,7 @@ export class CommunityService {
     const msg = await this.prisma.communityMessage.findUnique({ where: { id: messageId } });
     if (!msg) throw new NotFoundException('الرسالة غير موجودة');
     await this.prisma.communityMessage.delete({ where: { id: messageId } });
-    return { success: true };
+    return { success: true, subjectId: msg.subjectId };
   }
 
   private serialize(m: {

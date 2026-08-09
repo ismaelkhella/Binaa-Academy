@@ -16,12 +16,13 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 import { CommunityService, MAX_ATTACHMENT_BYTES, safeServeHeaders } from './community.service';
+import { CommunityGateway } from './community.gateway';
 import { UserJwtGuard, AdminJwtGuard } from '../auth/guards/jwt.guard';
 
 @Controller('community')
 @UseGuards(UserJwtGuard)
 export class CommunityController {
-  constructor(private community: CommunityService) {}
+  constructor(private community: CommunityService, private gateway: CommunityGateway) {}
 
   @Get('subjects')
   listSubjects(@Req() req: any) {
@@ -54,20 +55,22 @@ export class CommunityController {
   @Throttle({ default: { ttl: 60000, limit: 20 } })
   @Post(':subjectId/messages')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_ATTACHMENT_BYTES } }))
-  sendMessage(
+  async sendMessage(
     @Req() req: any,
     @Param('subjectId') subjectId: string,
     @Body() body: { content?: string; type?: string },
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.community.sendMessage(req.user.sub, req.user.role, subjectId, body?.content, file, body?.type);
+    const message = await this.community.sendMessage(req.user.sub, req.user.role, subjectId, body?.content, file, body?.type);
+    this.gateway.broadcastNewMessage(subjectId, message);
+    return message;
   }
 }
 
 @Controller('admin/community')
 @UseGuards(AdminJwtGuard)
 export class AdminCommunityController {
-  constructor(private community: CommunityService) {}
+  constructor(private community: CommunityService, private gateway: CommunityGateway) {}
 
   @Get(':subjectId/messages')
   getMessages(
@@ -90,7 +93,9 @@ export class AdminCommunityController {
   }
 
   @Delete('messages/:id')
-  deleteMessage(@Param('id') id: string) {
-    return this.community.adminDeleteMessage(id);
+  async deleteMessage(@Param('id') id: string) {
+    const result = await this.community.adminDeleteMessage(id);
+    this.gateway.broadcastDeletedMessage(result.subjectId, id);
+    return { success: true };
   }
 }
