@@ -48,10 +48,34 @@ export class ChatService {
       },
     });
 
+    // Engagement rate: share of subscribed students who watched at least one
+    // of this teacher's videos in the last 30 days.
+    let engagementRate = 0;
+    if (studentsCount > 0) {
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const activeViewers = await this.prisma.videoView.findMany({
+        where: {
+          userId: { in: Array.from(uniqueUserIds) },
+          video: { subjectId: { in: subjectIds } },
+          lastViewed: { gte: since },
+        },
+        select: { userId: true },
+        distinct: ['userId'],
+      });
+      engagementRate = Math.round((activeViewers.length / studentsCount) * 100);
+    }
+
     return {
+      teacher: {
+        id: teacher.id,
+        name: teacher.name,
+        bio: teacher.bio,
+        avatarUrl: teacher.avatarUrl,
+      },
       studentsCount,
       subjectsCount,
       videosCount,
+      engagementRate,
     };
   }
 

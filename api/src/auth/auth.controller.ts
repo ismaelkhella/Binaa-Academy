@@ -1,7 +1,7 @@
 import { Controller, Post, Body, UseGuards, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto, SetupProfileDto, AdminLoginDto, AdminChangePasswordDto } from './dto/auth.dto';
+import { RegisterDto, LoginDto, SetupProfileDto, AdminLoginDto, AdminChangePasswordDto, RefreshTokenDto } from './dto/auth.dto';
 import { StudentJwtGuard, AdminJwtGuard } from './guards/jwt.guard';
 
 @Controller('auth')
@@ -45,5 +45,15 @@ export class AuthController {
     @Body() dto: AdminChangePasswordDto,
   ) {
     return this.authService.adminChangePassword(req.admin.sub, dto);
+  }
+
+  @Post('refresh')
+  refresh(@Body() dto: RefreshTokenDto) {
+    return this.authService.refresh(dto.refreshToken);
+  }
+
+  @Post('logout')
+  logout(@Body() dto: RefreshTokenDto) {
+    return this.authService.logout(dto.refreshToken);
   }
 }

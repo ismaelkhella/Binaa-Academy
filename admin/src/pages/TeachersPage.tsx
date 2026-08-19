@@ -21,11 +21,51 @@ export default function TeachersPage() {
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
+    password: '',
     bio: '',
     avatarUrl: '',
     commissionRate: 0.25,
     subjectId: '',
   });
+
+  // Credentials modal (set/reset teacher login)
+  const [credTeacher, setCredTeacher] = useState<Teacher | null>(null);
+  const [credForm, setCredForm] = useState({ phone: '', password: '' });
+  const [credError, setCredError] = useState<string | null>(null);
+  const [credSuccess, setCredSuccess] = useState<string | null>(null);
+  const [credSubmitting, setCredSubmitting] = useState(false);
+
+  async function handleCredSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!credTeacher) return;
+    if (!credForm.phone.trim() && !credForm.password.trim()) {
+      setCredError('أدخل رقم هاتف جديد أو كلمة مرور جديدة');
+      return;
+    }
+    setCredSubmitting(true);
+    setCredError(null);
+    setCredSuccess(null);
+    try {
+      await api.updateTeacherCredentials(credTeacher.id, {
+        phone: credForm.phone.trim() || undefined,
+        password: credForm.password.trim() || undefined,
+      });
+      setCredSuccess('تم تحديث بيانات الدخول بنجاح');
+      api.getTeachers({ page: page.toString(), limit: limit.toString() }).then((res) => {
+        setTeachers(res.teachers);
+        setTotal(res.total);
+      });
+      setTimeout(() => {
+        setCredTeacher(null);
+        setCredForm({ phone: '', password: '' });
+        setCredSuccess(null);
+      }, 1200);
+    } catch (err: any) {
+      setCredError(err.message || 'حدث خطأ');
+    } finally {
+      setCredSubmitting(false);
+    }
+  }
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -70,6 +110,7 @@ export default function TeachersPage() {
       await api.createTeacher({
         name: formData.name.trim(),
         phone: formData.phone.trim(),
+        password: formData.password.trim() || undefined,
         bio: formData.bio.trim() || undefined,
         avatarUrl: formData.avatarUrl.trim() || undefined,
         commissionRate: Number(formData.commissionRate),
@@ -80,6 +121,7 @@ export default function TeachersPage() {
       setFormData({
         name: '',
         phone: '',
+        password: '',
         bio: '',
         avatarUrl: '',
         commissionRate: 0.25,
@@ -269,6 +311,7 @@ export default function TeachersPage() {
                     <th style={{ textAlign: 'right' }}>المرحلة الدراسية</th>
                     <th style={{ textAlign: 'center' }}>عدد المشتركين</th>
                     <th style={{ textAlign: 'center' }}>التقييم</th>
+                    <th style={{ textAlign: 'center' }}>بيانات الدخول</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -291,6 +334,14 @@ export default function TeachersPage() {
                       <td style={{ fontSize: '0.85rem', color: '#475569' }}>{teacher.grade}</td>
                       <td style={{ textAlign: 'center', fontWeight: 600, fontSize: '0.85rem' }}>{teacher.lessons || 0} طالب</td>
                       <td style={{ textAlign: 'center' }}>{renderStars(teacher.rating)}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          onClick={() => { setCredTeacher(teacher); setCredForm({ phone: teacher.user?.phone || '', password: '' }); setCredError(null); }}
+                          style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '0.3rem 0.7rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                        >
+                          🔑 تعديل
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -563,6 +614,18 @@ export default function TeachersPage() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>كلمة مرور الدخول للتطبيق</label>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="6 أحرف على الأقل — يستخدمها المعلم لتسجيل الدخول"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                 <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>نسبة العمولة</label>
                 <input 
                   type="number" 
@@ -636,6 +699,51 @@ export default function TeachersPage() {
                     cursor: 'pointer' 
                   }}
                 >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Teacher credentials modal */}
+      {credTeacher && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: '1rem' }} onClick={() => setCredTeacher(null)}>
+          <div style={{ background: '#fff', borderRadius: '12px', padding: '1.5rem', width: '100%', maxWidth: '420px', direction: 'rtl' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 0.25rem', fontSize: '1.05rem' }}>بيانات دخول المعلم</h3>
+            <p style={{ margin: '0 0 1rem', color: '#64748b', fontSize: '0.85rem' }}>{credTeacher.name} — يسجّل الدخول للتطبيق برقم الهاتف وكلمة المرور</p>
+
+            {credError && <div style={{ background: '#fef2f2', color: '#b91c1c', padding: '0.5rem 0.75rem', borderRadius: '8px', marginBottom: '0.75rem', fontSize: '0.85rem' }}>{credError}</div>}
+            {credSuccess && <div style={{ background: '#ecfdf5', color: '#047857', padding: '0.5rem 0.75rem', borderRadius: '8px', marginBottom: '0.75rem', fontSize: '0.85rem' }}>{credSuccess}</div>}
+
+            <form onSubmit={handleCredSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>رقم الهاتف</label>
+                <input
+                  type="tel"
+                  placeholder="05XXXXXXXX"
+                  value={credForm.phone}
+                  onChange={(e) => setCredForm({ ...credForm, phone: e.target.value })}
+                  style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem' }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>كلمة مرور جديدة</label>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="اتركها فارغة للإبقاء على الحالية"
+                  value={credForm.password}
+                  onChange={(e) => setCredForm({ ...credForm, password: e.target.value })}
+                  style={{ width: '100%', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem' }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-start', marginTop: '0.25rem' }}>
+                <button type="submit" disabled={credSubmitting} style={{ background: '#047857', color: '#fff', border: 'none', padding: '0.6rem 1.5rem', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
+                  {credSubmitting ? 'جارٍ الحفظ...' : 'حفظ'}
+                </button>
+                <button type="button" onClick={() => setCredTeacher(null)} style={{ background: '#f1f5f9', color: '#475569', padding: '0.6rem 1.5rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: 700, cursor: 'pointer' }}>
                   إلغاء
                 </button>
               </div>

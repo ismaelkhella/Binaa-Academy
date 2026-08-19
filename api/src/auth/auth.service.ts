@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto, LoginDto, SetupProfileDto, AdminLoginDto, AdminChangePasswordDto } from './dto/auth.dto';
 import { Grade, Branch, PlanType } from '@prisma/client';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class AuthService {
@@ -46,17 +47,22 @@ export class AuthService {
       });
     }
 
-    const token = this.signStudentToken(user.id, user.phone, user.role);
+    const accessToken = this.signStudentToken(user.id, user.phone, user.role);
+    const refreshToken = await this.createRefreshToken(user.id);
 
     return {
-      token,
+      accessToken,
+      refreshToken,
+      // keep legacy `token` field so existing clients don't break
+      token: accessToken,
       user: this.sanitizeUser(user),
     };
   }
 
   async login(dto: LoginDto) {
     const user = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
-    if (!user || user.role !== 'STUDENT') {
+    // Students and teachers log in here; admins use /auth/admin/login.
+    if (!user || (user.role !== 'STUDENT' && user.role !== 'TEACHER')) {
       throw new UnauthorizedException('رقم الهاتف أو كلمة المرور غير صحيحة');
     }
 
@@ -68,11 +74,23 @@ export class AuthService {
       throw new UnauthorizedException('رقم الهاتف أو كلمة المرور غير صحيحة');
     }
 
-    const token = this.signStudentToken(user.id, user.phone, user.role);
+    const accessToken = this.signStudentToken(user.id, user.phone, user.role);
+    const refreshToken = await this.createRefreshToken(user.id);
+
+    // For teachers, include the teacher profile so the app can route to the
+    // teacher home screen and show name/avatar without an extra request.
+    let teacher: { id: string; name: string; bio: string | null; avatarUrl: string | null } | null = null;
+    if (user.role === 'TEACHER') {
+      const t = await this.prisma.teacher.findUnique({ where: { userId: user.id } });
+      if (t) teacher = { id: t.id, name: t.name, bio: t.bio, avatarUrl: t.avatarUrl };
+    }
 
     return {
-      token,
+      accessToken,
+      refreshToken,
+      token: accessToken,
       user: this.sanitizeUser(user),
+      teacher,
     };
   }
 
@@ -133,10 +151,14 @@ export class AuthService {
     return { message: 'تم تغيير كلمة المرور بنجاح' };
   }
 
+  // ------------------------------------------------------------------
+  // Helpers
+  // ------------------------------------------------------------------
+
   private signStudentToken(userId: string, phone: string, role: string) {
     return this.jwt.sign(
       { sub: userId, phone, role },
-      { secret: this.config.get('JWT_SECRET'), expiresIn: this.config.get('JWT_EXPIRES_IN') || '30d' },
+      { secret: this.config.get('JWT_SECRET'), expiresIn: ACCESS_TOKEN_TTL },
     );
   }
 
@@ -152,4 +174,62 @@ export class AuthService {
       createdAt: user.createdAt,
     };
   }
+
+  async refresh(rawToken: string) {
+    const tokenHash = this.hashToken(rawToken);
+
+    const stored = await this.prisma.refreshToken.findFirst({
+      where: { tokenHash, isRevoked: false },
+    });
+
+    if (!stored || stored.expiresAt < new Date()) {
+      throw new UnauthorizedException('رمز التحديث غير صالح أو منتهي الصلاحية');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: stored.userId } });
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('الحساب غير نشط');
+    }
+
+    // Rotate: revoke the old token and issue a fresh pair
+    await this.prisma.refreshToken.update({
+      where: { id: stored.id },
+      data: { isRevoked: true },
+    });
+
+    const accessToken = this.signStudentToken(user.id, user.phone, user.role);
+    const refreshToken = await this.createRefreshToken(user.id);
+
+    return { accessToken, refreshToken, token: accessToken };
+  }
+
+  async logout(rawToken: string) {
+    const tokenHash = this.hashToken(rawToken);
+    await this.prisma.refreshToken.updateMany({
+      where: { tokenHash, isRevoked: false },
+      data: { isRevoked: true },
+    });
+    return { message: 'تم تسجيل الخروج بنجاح' };
+  }
+
+  private async createRefreshToken(userId: string): Promise<string> {
+    const raw = crypto.randomBytes(48).toString('hex');
+    const tokenHash = this.hashToken(raw);
+    await this.prisma.refreshToken.create({
+      data: {
+        userId,
+        tokenHash,
+        expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+      },
+    });
+    return raw;
+  }
+
+  private hashToken(raw: string): string {
+    return crypto.createHash('sha256').update(raw).digest('hex');
+  }
 }
+
+const ACCESS_TOKEN_TTL = '15m';
+
+const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days

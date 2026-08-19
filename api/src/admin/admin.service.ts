@@ -12,6 +12,7 @@ import {
   CreateTeacherDto,
 } from './dto/admin.dto';
 import { PlanType } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AdminService {
@@ -662,6 +663,7 @@ export class AdminService {
           phone: dto.phone,
           name: dto.name,
           role: 'TEACHER',
+          passwordHash: dto.password ? await bcrypt.hash(dto.password, 10) : null,
         },
       });
 
@@ -692,5 +694,32 @@ export class AdminService {
         subjects: true,
       },
     });
+  }
+
+  /** Admin sets or resets a teacher's login phone/password. */
+  async updateTeacherCredentials(teacherId: string, dto: { phone?: string; password?: string }) {
+    if (!dto.phone && !dto.password) {
+      throw new BadRequestException('يجب تحديد رقم هاتف أو كلمة مرور');
+    }
+
+    const teacher = await this.prisma.teacher.findUnique({ where: { id: teacherId } });
+    if (!teacher) throw new NotFoundException('المعلم غير موجود');
+
+    if (dto.phone) {
+      const existing = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
+      if (existing && existing.id !== teacher.userId) {
+        throw new BadRequestException('رقم الهاتف مستخدم بالفعل لمستخدم آخر');
+      }
+    }
+
+    await this.prisma.user.update({
+      where: { id: teacher.userId },
+      data: {
+        ...(dto.phone ? { phone: dto.phone } : {}),
+        ...(dto.password ? { passwordHash: await bcrypt.hash(dto.password, 10) } : {}),
+      },
+    });
+
+    return { success: true };
   }
 }

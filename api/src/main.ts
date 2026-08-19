@@ -53,7 +53,9 @@ async function bootstrap() {
           fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
           imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
           mediaSrc: ["'self'", 'blob:', 'https:'],
-          connectSrc: ["'self'"],
+          // Mux direct uploads: the browser PUTs video files straight to
+          // Mux's upload endpoint (Google Cloud Storage), bypassing our API.
+          connectSrc: ["'self'", 'https://storage.googleapis.com', 'https://*.mux.com'],
           // Clickjacking protection: in production the admin panel must not be
           // frameable by anyone else.
           frameAncestors: ["'self'"],

@@ -57,6 +57,7 @@ model User {
   studySessions StudySession[]
   cartItems     CartItem[]
   chats         Chat[]         @relation("StudentChats")
+  communityMessages CommunityMessage[]
 
   @@map("users")
 }
@@ -93,8 +94,42 @@ model Subject {
   subscriptions SubscriptionSubject[]
   cartItems     CartItem[]
 
+  communityMessages CommunityMessage[]
+
   @@unique([name, grade, branch])
   @@map("subjects")
+}
+
+model CommunityMessage {
+  id           String   @id @default(cuid())
+  subjectId    String   @map("subject_id")
+  senderUserId String   @map("sender_user_id")
+  senderRole   UserRole @map("sender_role")
+  type         String   @default("text") // text | image | file | voice
+  content      String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  subject    Subject              @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  sender     User                 @relation(fields: [senderUserId], references: [id], onDelete: Cascade)
+  attachment CommunityAttachment?
+
+  @@index([subjectId, createdAt])
+  @@map("community_messages")
+}
+
+model CommunityAttachment {
+  id        String   @id @default(cuid())
+  messageId String   @unique @map("message_id")
+  fileName  String   @map("file_name")
+  mimeType  String   @map("mime_type")
+  size       Int
+  data       Bytes?
+  storageKey String?  @map("storage_key")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  message CommunityMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@map("community_attachments")
 }
 
 model Video {
@@ -334,5 +369,18 @@ model VideoQuestion {
   video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
   @@map("video_questions")
+}
+
+model RefreshToken {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  tokenHash  String   @map("token_hash")
+  expiresAt  DateTime @map("expires_at")
+  isRevoked  Boolean  @default(false) @map("is_revoked")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
 }
 

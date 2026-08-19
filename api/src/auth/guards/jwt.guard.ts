@@ -109,3 +109,24 @@ export class AppUserJwtGuard implements CanActivate {
     return auth.slice(7);
   }
 }
+
+@Injectable()
+export class UserJwtGuard implements CanActivate {
+  constructor(private jwt: JwtService, private config: ConfigService) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest();
+    const auth = request.headers.authorization;
+    const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null;
+    if (!token) throw new UnauthorizedException();
+
+    try {
+      const payload = this.jwt.verify(token, { secret: this.config.get('JWT_SECRET') });
+      if (payload.role !== 'STUDENT' && payload.role !== 'TEACHER') throw new UnauthorizedException();
+      request.user = payload;
+      return true;
+    } catch {
+      throw new UnauthorizedException('جلسة غير صالحة');
+    }
+  }
+}

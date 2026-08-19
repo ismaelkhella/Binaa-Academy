@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Delete,
   Param,
   Body,
@@ -30,6 +31,7 @@ import {
   UpdateSubjectDto,
   CreateSubjectDto,
   CreateTeacherDto,
+  TeacherCredentialsDto,
 } from './dto/admin.dto';
 
 @Controller('admin')
@@ -131,6 +133,11 @@ export class AdminController {
   @Post('teachers')
   createTeacher(@Body() dto: CreateTeacherDto) {
     return this.adminService.createTeacher(dto);
+  }
+
+  @Patch('teachers/:id/credentials')
+  updateTeacherCredentials(@Param('id') id: string, @Body() dto: TeacherCredentialsDto) {
+    return this.adminService.updateTeacherCredentials(id, dto);
   }
 
   @Post('upload')
