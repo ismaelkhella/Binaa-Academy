@@ -189,7 +189,7 @@ export default function SettingsPage() {
             <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.75rem' }}>معلومات النظام</h3>
             <div style={{ fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', color: 'var(--text-muted)' }}>
               <div>
-                <strong>قاعدة البيانات:</strong> PostgreSQL (مُدارة عبر Replit)
+                <strong>قاعدة البيانات:</strong> PostgreSQL
               </div>
               <div>
                 <strong>نظام المصادقة:</strong> جلسة المدير صالحة لمدة 24 ساعة

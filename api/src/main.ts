@@ -38,9 +38,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   const isProd = process.env.NODE_ENV === 'production';
 
-  // Behind Replit's proxy (dev preview + published autoscale): trust the first
-  // proxy hop so req.ip is the real client IP — without this, rate limiting
-  // would count ALL users against one shared proxy IP in production.
+  // Behind reverse proxy: trust the first proxy hop so req.ip is the real client IP.
   app.set('trust proxy', 1);
 
   // Security headers. CSP is tuned for the admin SPA (self JS bundles, React
@@ -57,15 +55,10 @@ async function bootstrap() {
           mediaSrc: ["'self'", 'blob:', 'https:'],
           connectSrc: ["'self'"],
           // Clickjacking protection: in production the admin panel must not be
-          // frameable by anyone else. Replit domains are only needed for the
-          // workspace preview iframe during development.
-          frameAncestors: isProd
-            ? ["'self'"]
-            : ["'self'", 'https://*.replit.dev', 'https://*.replit.com', 'https://*.replit.app'],
+          // frameable by anyone else.
+          frameAncestors: ["'self'"],
         },
       },
-      // frame-ancestors above is the modern control; X-Frame-Options would
-      // conflict with the Replit workspace preview iframe.
       frameguard: false,
       // uploads/media must stay loadable from the mobile app (different origin)
       crossOriginResourcePolicy: { policy: 'cross-origin' },

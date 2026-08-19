@@ -1,11 +1,11 @@
 {
   "info": {
     "name": "Bina Academy API",
-    "description": "مجموعة APIs منصة بناء أكاديمي — مرتبة حسب تسلسل الاستخدام في تطبيق الموبايل.\n\nBase URL: https://binaa-academy.replit.app/api\n\nالمتغيرات:\n• {{base_url}} = https://binaa-academy.replit.app/api\n• {{token}}    = JWT الطالب (يُعبَّأ تلقائياً بعد login)\n• {{admin_token}} = JWT الإدمن",
+    "description": "مجموعة APIs منصة بناء أكاديمي — مرتبة حسب تسلسل الاستخدام في تطبيق الموبايل.\n\nBase URL: http://localhost:3000/api\n\nالمتغيرات:\n• {{base_url}} = http://localhost:3000/api\n• {{token}}    = JWT الطالب (يُعبَّأ تلقائياً بعد login)\n• {{admin_token}} = JWT الإدمن",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "base_url",    "value": "https://binaa-academy.replit.app/api" },
+    { "key": "base_url",    "value": "http://localhost:3000/api" },
     { "key": "token",       "value": "" },
     { "key": "admin_token", "value": "" }
   ],
