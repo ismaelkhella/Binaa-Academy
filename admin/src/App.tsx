@@ -9,6 +9,7 @@ import TeachersPage from './pages/TeachersPage';
 import CommunityPage from './pages/CommunityPage';
 import SettingsPage from './pages/SettingsPage';
 import NotificationsPage from './pages/NotificationsPage';
+import QuestionBankPage from './pages/QuestionBankPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('admin_token');
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="community" element={<CommunityPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="question-bank" element={<QuestionBankPage />} />
       </Route>
     </Routes>
   );

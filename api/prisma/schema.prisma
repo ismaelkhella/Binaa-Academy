@@ -85,14 +85,17 @@ model Subject {
   grade     Grade
   branch    Branch
   teacherId String?  @map("teacher_id")
+  stageId   String?  @map("stage_id")
   createdAt DateTime @default(now()) @map("created_at")
   priceIls  Float    @default(50.0) @map("price_ils")
 
   teacher Teacher? @relation(fields: [teacherId], references: [id])
+  stage   Stage?   @relation(fields: [stageId], references: [id], onDelete: SetNull)
   videos  Video[]
   quizzes Quiz[]
   subscriptions SubscriptionSubject[]
   cartItems     CartItem[]
+  units     Unit[]
 
   communityMessages CommunityMessage[]
 
@@ -383,4 +386,56 @@ model RefreshToken {
   @@index([tokenHash])
   @@map("refresh_tokens")
 }
+
+model Stage {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  createdAt DateTime  @default(now()) @map("created_at")
+  subjects  Subject[]
+
+  @@map("stages")
+}
+
+model Unit {
+  id        String   @id @default(cuid())
+  subjectId String   @map("subject_id")
+  name      String
+  order     Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  questions Question[]
+
+  @@map("units")
+}
+
+model Question {
+  id        String   @id @default(cuid())
+  unitId    String   @map("unit_id")
+  text      String
+  imageUrl  String?  @map("image_url")
+  order     Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  unit      Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  choices   Choice[]
+
+  @@map("questions")
+}
+
+model Choice {
+  id         String   @id @default(cuid())
+  questionId String   @map("question_id")
+  text       String
+  isCorrect  Boolean  @default(false) @map("is_correct")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("choices")
+}
+
 

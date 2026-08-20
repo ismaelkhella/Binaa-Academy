@@ -5,6 +5,7 @@ const navItems = [
   { to: '/', label: 'لوحة التحكم', icon: '📊' },
   { to: '/students', label: 'إدارة الطلاب', icon: '👥' },
   { to: '/videos', label: 'المحتوى والدروس', icon: '📁' },
+  { to: '/question-bank', label: 'بنك الأسئلة', icon: '📝' },
   { to: '/teachers', label: 'إدارة المعلمين', icon: '👤' },
   { to: '/community', label: 'مجتمعات المواد', icon: '💬' },
   { to: '/subscriptions', label: 'الاشتراكات والمدفوعات', icon: '💳' },

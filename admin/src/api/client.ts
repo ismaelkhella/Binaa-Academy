@@ -97,6 +97,42 @@ export const api = {
   updatePlan: (id: string, data: Partial<Plan>) =>
     request('/admin/plans/' + id, { method: 'PUT', body: JSON.stringify(data) }),
 
+  // ─── QUESTION BANK API ─────────────────────────────────────────────────────
+  getStages: () => request<Stage[]>('/admin/qb/stages'),
+  createStage: (data: { name: string }) =>
+    request<Stage>('/admin/qb/stages', { method: 'POST', body: JSON.stringify(data) }),
+  updateStage: (id: string, data: { name: string }) =>
+    request<Stage>('/admin/qb/stages/' + id, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteStage: (id: string) =>
+    request<any>('/admin/qb/stages/' + id, { method: 'DELETE' }),
+
+  getStageSubjects: (stageId: string) =>
+    request<Subject[]>('/admin/qb/stages/' + stageId + '/subjects'),
+  createStageSubject: (stageId: string, data: { name: string; grade: string; branch: string }) =>
+    request<Subject>('/admin/qb/stages/' + stageId + '/subjects', { method: 'POST', body: JSON.stringify(data) }),
+  updateQbSubject: (id: string, data: { name: string; grade: string; branch: string }) =>
+    request<Subject>('/admin/qb/subjects/' + id, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteQbSubject: (id: string) =>
+    request<any>('/admin/qb/subjects/' + id, { method: 'DELETE' }),
+
+  getSubjectUnits: (subjectId: string) =>
+    request<Unit[]>('/admin/qb/subjects/' + subjectId + '/units'),
+  createUnit: (subjectId: string, data: { name: string; order?: number }) =>
+    request<Unit>('/admin/qb/subjects/' + subjectId + '/units', { method: 'POST', body: JSON.stringify(data) }),
+  updateUnit: (id: string, data: { name: string; order?: number }) =>
+    request<Unit>('/admin/qb/units/' + id, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteUnit: (id: string) =>
+    request<any>('/admin/qb/units/' + id, { method: 'DELETE' }),
+
+  getUnitQuestions: (unitId: string) =>
+    request<Question[]>('/admin/qb/units/' + unitId + '/questions'),
+  createQuestion: (unitId: string, data: { text: string; imageUrl?: string; order?: number; choices: { text: string; isCorrect: boolean }[] }) =>
+    request<Question>('/admin/qb/units/' + unitId + '/questions', { method: 'POST', body: JSON.stringify(data) }),
+  updateQuestion: (id: string, data: { text: string; imageUrl?: string; order?: number; choices: { text: string; isCorrect: boolean }[] }) =>
+    request<Question>('/admin/qb/questions/' + id, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteQuestion: (id: string) =>
+    request<any>('/admin/qb/questions/' + id, { method: 'DELETE' }),
+
   getTeachers: (params?: Record<string, string>) => {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
     return request<{ teachers: Teacher[]; total: number; page: number; limit: number }>('/admin/teachers' + qs);
@@ -415,3 +451,38 @@ export interface TeachersDashboardData {
     avatar: string;
   }>;
 }
+
+export interface Stage {
+  id: string;
+  name: string;
+  createdAt: string;
+  _count?: { subjects: number };
+}
+
+export interface Unit {
+  id: string;
+  subjectId: string;
+  name: string;
+  order: number;
+  createdAt: string;
+  _count?: { questions: number };
+}
+
+export interface Choice {
+  id: string;
+  questionId: string;
+  text: string;
+  isCorrect: boolean;
+  createdAt: string;
+}
+
+export interface Question {
+  id: string;
+  unitId: string;
+  text: string;
+  imageUrl?: string | null;
+  order: number;
+  createdAt: string;
+  choices: Choice[];
+}
+

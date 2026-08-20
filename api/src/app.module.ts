@@ -18,6 +18,7 @@ import { CartModule } from './cart/cart.module';
 import { ChatModule } from './chat/chat.module';
 import { CommunityModule } from './community/community.module';
 import { MuxModule } from './mux/mux.module';
+import { QuestionBankModule } from './question-bank/question-bank.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { MuxModule } from './mux/mux.module';
     ChatModule,
     CommunityModule,
     MuxModule,
+    QuestionBankModule,
   ],
   controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
