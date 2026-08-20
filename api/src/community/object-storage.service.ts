@@ -1,21 +1,24 @@
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
-import { Client } from '@replit/object-storage';
 import { randomUUID } from 'crypto';
 import { Readable } from 'stream';
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
- * Thin wrapper around Replit App Storage (GCS-backed object storage).
- * Community attachment binaries live here; PostgreSQL keeps only metadata + key.
+ * Local-disk replacement for Replit App Storage.
+ * Files are stored under uploads/community-attachments/ relative to the project root.
+ * The public API is identical to the original Replit-backed service so no callers need to change.
  */
 @Injectable()
 export class ObjectStorageService {
   private readonly logger = new Logger(ObjectStorageService.name);
-  // Explicit bucketId: the sidecar default-bucket lookup is empty in some environments.
-  private readonly client = new Client(
-    process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID
-      ? { bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID }
-      : undefined,
-  );
+  private readonly baseDir: string;
+
+  constructor() {
+    // Resolve uploads dir relative to the compiled dist output (two levels up from dist/src/community)
+    this.baseDir = path.resolve(__dirname, '..', '..', '..', 'uploads', 'community-attachments');
+    fs.mkdirSync(this.baseDir, { recursive: true });
+  }
 
   buildAttachmentKey(fileName: string): string {
     // Never trust the client filename for the key — use a random UUID.
@@ -24,25 +27,33 @@ export class ObjectStorageService {
   }
 
   async upload(key: string, buffer: Buffer): Promise<void> {
-    const { ok, error } = await this.client.uploadFromBytes(key, buffer);
-    if (!ok) {
-      this.logger.error(`Object storage upload failed for ${key}: ${error?.message}`);
+    try {
+      const filePath = this.keyToPath(key);
+      await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.promises.writeFile(filePath, buffer);
+    } catch (error: any) {
+      this.logger.error(`Local storage upload failed for ${key}: ${error?.message}`);
       throw new InternalServerErrorException('فشل رفع الملف، حاول مرة أخرى');
     }
   }
 
   /** Returns a readable stream of the object's bytes. */
   downloadStream(key: string): Readable {
-    return this.client.downloadAsStream(key);
+    return fs.createReadStream(this.keyToPath(key));
   }
 
-  /** Best-effort delete — a leaked object is logged, never fatal. */
+  /** Best-effort delete — a leaked file is logged, never fatal. */
   async deleteQuietly(key: string): Promise<void> {
     try {
-      const { ok, error } = await this.client.delete(key);
-      if (!ok) this.logger.warn(`Object storage delete failed for ${key}: ${error?.message}`);
+      await fs.promises.unlink(this.keyToPath(key));
     } catch (e: any) {
-      this.logger.warn(`Object storage delete threw for ${key}: ${e?.message}`);
+      this.logger.warn(`Local storage delete failed for ${key}: ${e?.message}`);
     }
+  }
+
+  private keyToPath(key: string): string {
+    // key is like "community-attachments/<uuid>.ext" — strip the leading segment
+    const filename = key.replace(/^community-attachments\//, '');
+    return path.join(this.baseDir, filename);
   }
 }

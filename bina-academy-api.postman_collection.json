@@ -5,9 +5,10 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "base_url",    "value": "http://localhost:3000/api" },
-    { "key": "token",       "value": "" },
-    { "key": "admin_token", "value": "" }
+    { "key": "base_url",      "value": "http://localhost:3000/api",   "description": "للتطوير المحلي (Postman / Browser)" },
+    { "key": "emulator_url",  "value": "http://10.0.2.2:3000/api",    "description": "Android Emulator — 10.0.2.2 = localhost الجهاز" },
+    { "key": "token",         "value": "" },
+    { "key": "admin_token",   "value": "" }
   ],
   "item": [
 
@@ -763,6 +764,312 @@
                 "description": "PATCH-style — كل الحقول اختيارية.\nالحقول القابلة للتعديل: priceIls, videosPerSubject, discountPercent, isActive"
               }
             }
+          ]
+        },
+
+        {
+          "name": "📚 بنك الأسئلة — Question Bank",
+          "item": [
+
+            {
+              "name": "🔄 استيراد المراحل والمواد من المحتوى",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/admin/qb/import-from-subjects",
+                "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                "description": "يقرأ كل المواد من جدول المحتوى/الدروس وينشئ تلقائياً:\n• مراحل دراسية (الصف الحادي عشر/الثاني عشر - علمي/أدبي)\n• يربط كل مادة بمرحلتها\n\n✅ آمن للتشغيل أكثر من مرة — يتخطى السجلات الموجودة تلقائياً.\n\nيعود بـ: { message, createdStages[], linkedSubjects[], skippedSubjects[], summary }"
+              }
+            },
+
+            {
+              "name": "🏫 المراحل الدراسية",
+              "item": [
+                {
+                  "name": "قائمة المراحل",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/qb/stages",
+                    "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                    "description": "يعود بكل المراحل الدراسية مع عدد المواد لكل مرحلة.\nيعود بـ: [{ id, name, createdAt, _count: { subjects } }]"
+                  }
+                },
+                {
+                  "name": "إضافة مرحلة دراسية",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/qb/stages",
+                    "header": [
+                      { "key": "Content-Type",  "value": "application/json" },
+                      { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"الصف العاشر\"\n}"
+                    },
+                    "description": "يُنشئ مرحلة دراسية جديدة.\nاسم المرحلة يجب أن يكون فريداً."
+                  }
+                },
+                {
+                  "name": "تعديل مرحلة دراسية",
+                  "request": {
+                    "method": "PUT",
+                    "url": {
+                      "raw": "{{base_url}}/admin/qb/stages/:id",
+                      "host": ["{{base_url}}"],
+                      "path": ["admin", "qb", "stages", ":id"],
+                      "variable": [{ "key": "id", "value": "STAGE_ID" }]
+                    },
+                    "header": [
+                      { "key": "Content-Type",  "value": "application/json" },
+                      { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"الصف الحادي عشر - علمي (محدّث)\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "حذف مرحلة دراسية",
+                  "request": {
+                    "method": "DELETE",
+                    "url": {
+                      "raw": "{{base_url}}/admin/qb/stages/:id",
+                      "host": ["{{base_url}}"],
+                      "path": ["admin", "qb", "stages", ":id"],
+                      "variable": [{ "key": "id", "value": "STAGE_ID" }]
+                    },
+                    "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                    "description": "⚠️ يحذف المرحلة ومواد بنك الأسئلة المرتبطة بها."
+                  }
+                }
+              ]
+            },
+
+            {
+              "name": "📖 مواد بنك الأسئلة",
+              "item": [
+                {
+                  "name": "قائمة مواد مرحلة",
+                  "request": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/qb/stages/:stageId/subjects",
+                      "host": ["{{base_url}}"],
+                      "path": ["admin", "qb", "stages", ":stageId", "subjects"],
+                      "variable": [{ "key": "stageId", "value": "STAGE_ID" }]
+                    },
+                    "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                    "description": "يعود بكل مواد المرحلة مع عدد الوحدات.\nيعود بـ: [{ id, name, grade, branch, stageId, _count: { units } }]"
+                  }
+                },
+                {
+                  "name": "إضافة مادة لمرحلة",
+                  "request": {
+                    "method": "POST",
+                    "url": {
+                      "raw": "{{base_url}}/admin/qb/stages/:stageId/subjects",
+                      "host": ["{{base_url}}"],
+                      "path": ["admin", "qb", "stages", ":stageId", "subjects"],
+                      "variable": [{ "key": "stageId", "value": "STAGE_ID" }]
+                    },
+                    "header": [
+                      { "key": "Content-Type",  "value": "application/json" },
+                      { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"الفيزياء\",\n  \"grade\": \"GRADE_11\",\n  \"branch\": \"SCIENTIFIC\"\n}"
+                    },
+                    "description": "grade  : GRADE_11 | GRADE_12\nbranch : SCIENTIFIC | LITERARY"
+                  }
+                },
+                {
+                  "name": "تعديل مادة",
+                  "request": {
+                    "method": "PUT",
+                    "url": {
+                      "raw": "{{base_url}}/admin/qb/subjects/:id",
+                      "host": ["{{base_url}}"],
+                      "path": ["admin", "qb", "subjects", ":id"],
+                      "variable": [{ "key": "id", "value": "SUBJECT_ID" }]
+                    },
+                    "header": [
+                      { "key": "Content-Type",  "value": "application/json" },
+                      { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"الفيزياء (محدّث)\",\n  \"grade\": \"GRADE_11\",\n  \"branch\": \"SCIENTIFIC\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "حذف مادة",
+                  "request": {
+                    "method": "DELETE",
+                    "url": {
+                      "raw": "{{base_url}}/admin/qb/subjects/:id",
+                      "host": ["{{base_url}}"],
+                      "path": ["admin", "qb", "subjects", ":id"],
+                      "variable": [{ "key": "id", "value": "SUBJECT_ID" }]
+                    },
+                    "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                    "description": "⚠️ يحذف المادة وكل وحداتها وأسئلتها."
+                  }
+                }
+              ]
+            },
+
+            {
+              "name": "📂 الوحدات",
+              "item": [
+                {
+                  "name": "قائمة وحدات مادة",
+                  "request": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/qb/subjects/:subjectId/units",
+                      "host": ["{{base_url}}"],
+                      "path": ["admin", "qb", "subjects", ":subjectId", "units"],
+                      "variable": [{ "key": "subjectId", "value": "SUBJECT_ID" }]
+                    },
+                    "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                    "description": "يعود بوحدات المادة مرتبة حسب order.\nيعود بـ: [{ id, name, order, _count: { questions } }]"
+                  }
+                },
+                {
+                  "name": "إضافة وحدة",
+                  "request": {
+                    "method": "POST",
+                    "url": {
+                      "raw": "{{base_url}}/admin/qb/subjects/:subjectId/units",
+                      "host": ["{{base_url}}"],
+                      "path": ["admin", "qb", "subjects", ":subjectId", "units"],
+                      "variable": [{ "key": "subjectId", "value": "SUBJECT_ID" }]
+                    },
+                    "header": [
+                      { "key": "Content-Type",  "value": "application/json" },
+                      { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"الوحدة الأولى: الحركة والقوى\",\n  \"order\": 1\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "تعديل وحدة",
+                  "request": {
+                    "method": "PUT",
+                    "url": {
+                      "raw": "{{base_url}}/admin/qb/units/:id",
+                      "host": ["{{base_url}}"],
+                      "path": ["admin", "qb", "units", ":id"],
+                      "variable": [{ "key": "id", "value": "UNIT_ID" }]
+                    },
+                    "header": [
+                      { "key": "Content-Type",  "value": "application/json" },
+                      { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"الوحدة الأولى (محدّثة)\",\n  \"order\": 1\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "حذف وحدة",
+                  "request": {
+                    "method": "DELETE",
+                    "url": {
+                      "raw": "{{base_url}}/admin/qb/units/:id",
+                      "host": ["{{base_url}}"],
+                      "path": ["admin", "qb", "units", ":id"],
+                      "variable": [{ "key": "id", "value": "UNIT_ID" }]
+                    },
+                    "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                    "description": "⚠️ يحذف الوحدة وكل أسئلتها."
+                  }
+                }
+              ]
+            },
+
+            {
+              "name": "❓ الأسئلة",
+              "item": [
+                {
+                  "name": "قائمة أسئلة وحدة",
+                  "request": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "{{base_url}}/admin/qb/units/:unitId/questions",
+                      "host": ["{{base_url}}"],
+                      "path": ["admin", "qb", "units", ":unitId", "questions"],
+                      "variable": [{ "key": "unitId", "value": "UNIT_ID" }]
+                    },
+                    "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+                    "description": "يعود بأسئلة الوحدة مرتبة حسب order مع اختياراتها.\nيعود بـ: [{ id, text, imageUrl, order, choices: [{ id, text, isCorrect }] }]"
+                  }
+                },
+                {
+                  "name": "إضافة سؤال",
+                  "request": {
+                    "method": "POST",
+                    "url": {
+                      "raw": "{{base_url}}/admin/qb/units/:unitId/questions",
+                      "host": ["{{base_url}}"],
+                      "path": ["admin", "qb", "units", ":unitId", "questions"],
+                      "variable": [{ "key": "unitId", "value": "UNIT_ID" }]
+                    },
+                    "header": [
+                      { "key": "Content-Type",  "value": "application/json" },
+                      { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"text\": \"ما هي وحدة قياس القوة في النظام الدولي؟\",\n  \"imageUrl\": null,\n  \"order\": 1,\n  \"choices\": [\n    { \"text\": \"نيوتن\",    \"isCorrect\": true  },\n    { \"text\": \"جول\",      \"isCorrect\": false },\n    { \"text\": \"واط\",      \"isCorrect\": false },\n    { \"text\": \"باسكال\",   \"isCorrect\": false }\n  ]\n}"
+                    },
+                    "description": "يجب أن يحتوي choices على إجابة صحيحة واحدة على الأقل (isCorrect: true).\nالحد الأدنى: 2 اختيارات — الحد الأقصى: 6 اختيارات."
+                  }
+                },
+                {
+                  "name": "تعديل سؤال",
+                  "request": {
+                    "method": "PUT",
+                    "url": {
+                      "raw": "{{base_url}}/admin/qb/questions/:id",
+                      "host": ["{{base_url}}"],
+                      "path": ["admin", "qb", "questions", ":id"],
+                      "variable": [{ "key": "id", "value": "QUESTION_ID" }]
+                    },
+                    "header": [
+                      { "key": "Content-Type",  "value": "application/json" },
+                      { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"text\": \"ما هي وحدة قياس الطاقة في النظام الدولي؟\",\n  \"imageUrl\": null,\n  \"order\": 1,\n  \"choices\": [\n    { \"text\": \"جول\",    \"isCorrect\": true  },\n    { \"text\": \"نيوتن\",  \"isCorrect\": false },\n    { \"text\": \"واط\",    \"isCorrect\": false },\n    { \"text\": \"أمبير\",  \"isCorrect\": false }\n  ]\n}"
+                    },
+                    "description": "يستبدل الاختيارات كلها — أرسل القائمة الكاملة في كل تعديل."
+                  }
+                },
+                {
+                  "name": "حذف سؤال",
+                  "request": {
+                    "method": "DELETE",
+                    "url": {
+                      "raw": "{{base_url}}/admin/qb/questions/:id",
+                      "host": ["{{base_url}}"],
+                      "path": ["admin", "qb", "questions", ":id"],
+                      "variable": [{ "key": "id", "value": "QUESTION_ID" }]
+                    },
+                    "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }]
+                  }
+                }
+              ]
+            }
+
           ]
         }
 
