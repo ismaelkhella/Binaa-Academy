@@ -1,0 +1,52 @@
+import { PrismaService } from '../prisma/prisma.service';
+export declare class DashboardService {
+    private prisma;
+    constructor(prisma: PrismaService);
+    getDashboardData(userId: string): Promise<{
+        studentName: string;
+        generalProgress: number;
+        continueLearning: {
+            videoId: string;
+            videoTitle: string;
+            subjectName: string;
+            unitName: string;
+            lessonText: string;
+            durationSec: number;
+            timeLeftMin: number;
+            progressPercent: number;
+        };
+        todayGoals: {
+            completedCount: number;
+            totalCount: number;
+            percentage: number;
+            text: string;
+        };
+        dailyQuiz: {
+            id: string;
+            title: string;
+            description: string;
+            isAvailable: boolean;
+            buttonText: string;
+            points: number;
+        };
+        suggestedSubjects: {
+            id: string;
+            subjectName: string;
+            teacherName: string;
+            rating: number;
+        }[];
+        subjectShopping: {
+            id: string;
+            name: string;
+            priceIls: number;
+            isSubscribed: boolean;
+            isInCart: boolean;
+            teacher: {
+                id: string;
+                name: string;
+                avatarUrl: string;
+                rating: number;
+            } | null;
+        }[];
+    }>;
+}

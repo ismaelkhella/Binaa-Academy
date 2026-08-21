@@ -1,9 +1,7 @@
 .tools/
 node_modules/
-# api/dist is compiled TypeScript — ignore it
-api/dist/
-# admin/dist is the built React app — track it in git so DigitalOcean gets it on clone
-build/
+# Both admin/dist and api/dist are committed to git for DigitalOcean deployment
+# build/
 .env
 .env.local
 *.log
