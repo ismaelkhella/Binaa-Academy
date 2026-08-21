@@ -392,7 +392,7 @@ export interface Subject {
   priceIls: number;
   teacherId?: string | null;
   teacher: { id: string; name: string } | null;
-  _count: { videos: number };
+  _count: { videos?: number; units?: number };
 }
 
 export interface Plan {

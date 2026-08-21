@@ -433,7 +433,10 @@ export class AdminService {
 
   async listSubjects() {
     return this.prisma.subject.findMany({
-      include: { teacher: { select: { id: true, name: true } }, _count: { select: { videos: true } } },
+      include: {
+        teacher: { select: { id: true, name: true } },
+        _count: { select: { videos: true, units: true } },
+      },
       orderBy: [{ grade: 'asc' }, { branch: 'asc' }, { name: 'asc' }],
     });
   }

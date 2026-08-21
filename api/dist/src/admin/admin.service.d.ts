@@ -446,6 +446,7 @@ export declare class AdminService {
         } | null;
         _count: {
             videos: number;
+            units: number;
         };
     } & {
         name: string;

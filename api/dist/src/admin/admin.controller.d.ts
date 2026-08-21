@@ -445,6 +445,7 @@ export declare class AdminController {
         } | null;
         _count: {
             videos: number;
+            units: number;
         };
     } & {
         name: string;
