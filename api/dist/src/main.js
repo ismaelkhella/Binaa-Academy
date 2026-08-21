@@ -7,6 +7,7 @@ const core_1 = require("@nestjs/core");
 const common_1 = require("@nestjs/common");
 const path_1 = require("path");
 const helmet_1 = __importDefault(require("helmet"));
+const fs_1 = require("fs");
 const app_module_1 = require("./app.module");
 function validateSecrets() {
     const MIN_LENGTH = 128;
@@ -52,14 +53,25 @@ async function bootstrap() {
         crossOriginResourcePolicy: { policy: 'cross-origin' },
         crossOriginEmbedderPolicy: false,
     }));
-    app.useStaticAssets((0, path_1.join)(process.cwd(), 'uploads'), {
-        prefix: '/uploads/',
-    });
-    app.useStaticAssets((0, path_1.join)(process.cwd(), 'uploads'), {
-        prefix: '/api/uploads/',
-    });
+    const uploadsCandidates = [
+        (0, path_1.join)(process.cwd(), 'uploads'),
+        (0, path_1.join)(process.cwd(), 'api', 'uploads'),
+        (0, path_1.join)(__dirname, '..', '..', 'uploads'),
+    ];
+    const uploadsDir = uploadsCandidates.find((dir) => (0, fs_1.existsSync)(dir)) ?? (0, path_1.join)(process.cwd(), 'uploads');
+    app.useStaticAssets(uploadsDir, { prefix: '/uploads/' });
+    app.useStaticAssets(uploadsDir, { prefix: '/api/uploads/' });
     if (isProd) {
-        const adminDist = (0, path_1.join)(process.cwd(), '..', 'admin', 'dist');
+        const adminCandidates = [
+            (0, path_1.join)(process.cwd(), '..', 'admin', 'dist'),
+            (0, path_1.join)(process.cwd(), 'admin', 'dist'),
+            (0, path_1.join)(__dirname, '..', '..', '..', 'admin', 'dist'),
+            (0, path_1.join)(__dirname, '..', '..', 'admin', 'dist'),
+            '/workspace/admin/dist',
+            '/admin/dist',
+        ];
+        const adminDist = adminCandidates.find((dir) => (0, fs_1.existsSync)((0, path_1.join)(dir, 'index.html'))) ?? (0, path_1.join)(process.cwd(), '..', 'admin', 'dist');
+        console.log(`[Admin Panel] Serving static assets from: ${adminDist} (index.html found: ${(0, fs_1.existsSync)((0, path_1.join)(adminDist, 'index.html'))})`);
         app.useStaticAssets(adminDist);
         app.use((req, res, next) => {
             const isPageRequest = (req.method === 'GET' || req.method === 'HEAD') &&

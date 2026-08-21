@@ -4,6 +4,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { Request, Response, NextFunction } from 'express';
 import { join } from 'path';
 import helmet from 'helmet';
+import { existsSync } from 'fs';
 import { AppModule } from './app.module';
 
 function validateSecrets() {
@@ -70,17 +71,29 @@ async function bootstrap() {
 
   // Serve uploaded media files — available at both /uploads/ and /api/uploads/
   // so that mobile clients using either the root URL or the /api base URL can access files.
-  app.useStaticAssets(join(process.cwd(), 'uploads'), {
-    prefix: '/uploads/',
-  });
-  app.useStaticAssets(join(process.cwd(), 'uploads'), {
-    prefix: '/api/uploads/',
-  });
+  const uploadsCandidates = [
+    join(process.cwd(), 'uploads'),
+    join(process.cwd(), 'api', 'uploads'),
+    join(__dirname, '..', '..', 'uploads'),
+  ];
+  const uploadsDir = uploadsCandidates.find((dir) => existsSync(dir)) ?? join(process.cwd(), 'uploads');
+  app.useStaticAssets(uploadsDir, { prefix: '/uploads/' });
+  app.useStaticAssets(uploadsDir, { prefix: '/api/uploads/' });
 
   // In production, serve the built admin panel with an SPA fallback: deep
   // links like /login or /students must load the app (index.html), not 404.
   if (isProd) {
-    const adminDist = join(process.cwd(), '..', 'admin', 'dist');
+    const adminCandidates = [
+      join(process.cwd(), '..', 'admin', 'dist'),
+      join(process.cwd(), 'admin', 'dist'),
+      join(__dirname, '..', '..', '..', 'admin', 'dist'),
+      join(__dirname, '..', '..', 'admin', 'dist'),
+      '/workspace/admin/dist',
+      '/admin/dist',
+    ];
+    const adminDist = adminCandidates.find((dir) => existsSync(join(dir, 'index.html'))) ?? join(process.cwd(), '..', 'admin', 'dist');
+    console.log(`[Admin Panel] Serving static assets from: ${adminDist} (index.html found: ${existsSync(join(adminDist, 'index.html'))})`);
+
     app.useStaticAssets(adminDist);
     app.use((req: Request, res: Response, next: NextFunction) => {
       const isPageRequest =

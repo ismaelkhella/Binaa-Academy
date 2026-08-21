@@ -2,10 +2,18 @@
   "name": "binaa-academy",
   "version": "1.0.0",
   "private": true,
+  "workspaces": [
+    "api",
+    "admin"
+  ],
   "scripts": {
-    "start": "cd api && npm install --omit=dev --ignore-scripts && npx prisma@6 generate && npx prisma@6 db push && node dist/main"
+    "build": "npm run build --workspace=admin && npm run build --workspace=api",
+    "start": "cd api && npx prisma db push && node dist/src/main.js"
+  },
+  "dependencies": {
+    "prisma": "^6.1.0"
   },
   "engines": {
-    "node": "22.x"
+    "node": ">=20.x"
   }
 }

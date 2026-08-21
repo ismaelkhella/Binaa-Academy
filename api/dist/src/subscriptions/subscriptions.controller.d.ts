@@ -33,11 +33,11 @@ export declare class SubscriptionsController {
         id: string;
         isActive: boolean;
         createdAt: Date;
+        userId: string;
+        planId: string;
         startDate: Date;
         endDate: Date;
         isFrozen: boolean;
         notes: string | null;
-        userId: string;
-        planId: string;
     }) | null>;
 }

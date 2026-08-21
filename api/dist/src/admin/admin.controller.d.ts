@@ -87,12 +87,12 @@ export declare class AdminController {
             id: string;
             isActive: boolean;
             createdAt: Date;
+            userId: string;
+            planId: string;
             startDate: Date;
             endDate: Date;
             isFrozen: boolean;
             notes: string | null;
-            userId: string;
-            planId: string;
         })[];
         videoViews: ({
             video: {
@@ -214,12 +214,12 @@ export declare class AdminController {
         id: string;
         isActive: boolean;
         createdAt: Date;
+        userId: string;
+        planId: string;
         startDate: Date;
         endDate: Date;
         isFrozen: boolean;
         notes: string | null;
-        userId: string;
-        planId: string;
     }>;
     grantSubscription(id: string, dto: GrantSubscriptionDto): Promise<({
         plan: {
@@ -253,12 +253,12 @@ export declare class AdminController {
         id: string;
         isActive: boolean;
         createdAt: Date;
+        userId: string;
+        planId: string;
         startDate: Date;
         endDate: Date;
         isFrozen: boolean;
         notes: string | null;
-        userId: string;
-        planId: string;
     }) | null>;
     listVideos(): Promise<({
         teacher: {
