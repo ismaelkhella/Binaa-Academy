@@ -3,8 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "postinstall": "cd api && npm ci --include=dev && npm run build",
-    "start": "cd api && npx prisma db push && node dist/main"
+    "start": "cd api && npm install --include=dev && npm run build && npx prisma db push && node dist/main"
   },
   "engines": {
     "node": "22.x"
