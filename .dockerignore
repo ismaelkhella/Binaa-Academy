@@ -1,0 +1,33 @@
+# Git/IDE artifacts
+.git
+.agents
+.logs
+attached_assets
+scripts
+*.md
+*.postman_collection.json
+
+# Dependencies — Docker installs these fresh
+node_modules/
+admin/node_modules/
+api/node_modules/
+
+# Build outputs (will be built fresh inside Docker)
+admin/dist/
+api/dist/
+
+# Environment files — passed via DigitalOcean env vars, never baked into image
+.env
+.env.local
+api/.env
+api/.env.local
+
+# Dev database backup — not needed in production
+api/prisma/dev.db.backup
+api/prisma/seed.ts
+
+# Misc
+*.log
+.DS_Store
+coverage/
+docker-compose.yml
