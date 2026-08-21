@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, OnModuleInit, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -8,12 +8,47 @@ import { Grade, Branch, PlanType } from '@prisma/client';
 import * as crypto from 'crypto';
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
     private config: ConfigService,
   ) {}
+
+  async onModuleInit() {
+    try {
+      const adminCount = await this.prisma.adminUser.count();
+      if (adminCount === 0) {
+        const defaultAdminPassword = await bcrypt.hash('admin123', 10);
+        await this.prisma.adminUser.create({
+          data: {
+            email: 'admin@bina.ps',
+            passwordHash: defaultAdminPassword,
+            name: 'مدير النظام',
+          },
+        });
+        this.logger.log('Default admin user created: admin@bina.ps / admin123');
+      }
+
+      const planCount = await this.prisma.subscriptionPlan.count();
+      if (planCount === 0) {
+        const plans = [
+          { type: PlanType.TRIAL, nameAr: 'تجربة مجانية', durationDays: 365, priceIls: 0, videosPerSubject: 2 },
+          { type: PlanType.MONTHLY, nameAr: 'اشتراك شهري', durationDays: 30, priceIls: 49, videosPerSubject: 15 },
+          { type: PlanType.QUARTERLY, nameAr: 'اشتراك فصلي', durationDays: 90, discountPercent: 10, priceIls: 132, videosPerSubject: 20 },
+          { type: PlanType.YEARLY, nameAr: 'اشتراك سنوي', durationDays: 365, discountPercent: 10, priceIls: 529, videosPerSubject: 999 },
+        ];
+        for (const plan of plans) {
+          await this.prisma.subscriptionPlan.create({ data: plan });
+        }
+        this.logger.log('Default subscription plans seeded.');
+      }
+    } catch (err: any) {
+      this.logger.warn(`Could not bootstrap initial seed data: ${err?.message}`);
+    }
+  }
 
   async register(dto: RegisterDto) {
     const existing = await this.prisma.user.findUnique({ where: { phone: dto.phone } });

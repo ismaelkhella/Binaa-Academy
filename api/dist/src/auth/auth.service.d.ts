@@ -1,12 +1,15 @@
+import { OnModuleInit } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto, LoginDto, SetupProfileDto, AdminLoginDto, AdminChangePasswordDto } from './dto/auth.dto';
-export declare class AuthService {
+export declare class AuthService implements OnModuleInit {
     private prisma;
     private jwt;
     private config;
+    private readonly logger;
     constructor(prisma: PrismaService, jwt: JwtService, config: ConfigService);
+    onModuleInit(): Promise<void>;
     register(dto: RegisterDto): Promise<{
         accessToken: string;
         refreshToken: string;

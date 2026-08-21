@@ -58,7 +58,6 @@ export declare class AdminController {
         subscriptions: ({
             plan: {
                 id: string;
-                isActive: boolean;
                 createdAt: Date;
                 type: import(".prisma/client").$Enums.PlanType;
                 nameAr: string;
@@ -66,6 +65,7 @@ export declare class AdminController {
                 discountPercent: number;
                 priceIls: number;
                 videosPerSubject: number;
+                isActive: boolean;
             };
             subjects: ({
                 subject: {
@@ -85,8 +85,8 @@ export declare class AdminController {
             })[];
         } & {
             id: string;
-            isActive: boolean;
             createdAt: Date;
+            isActive: boolean;
             userId: string;
             planId: string;
             startDate: Date;
@@ -192,9 +192,9 @@ export declare class AdminController {
         parentPhone: string | null;
         id: string;
         passwordHash: string | null;
-        role: import(".prisma/client").$Enums.UserRole;
-        isActive: boolean;
         createdAt: Date;
+        isActive: boolean;
+        role: import(".prisma/client").$Enums.UserRole;
         updatedAt: Date;
     }>;
     updateStudent(id: string, dto: UpdateStudentDto): Promise<{
@@ -205,15 +205,15 @@ export declare class AdminController {
         parentPhone: string | null;
         id: string;
         passwordHash: string | null;
-        role: import(".prisma/client").$Enums.UserRole;
-        isActive: boolean;
         createdAt: Date;
+        isActive: boolean;
+        role: import(".prisma/client").$Enums.UserRole;
         updatedAt: Date;
     }>;
     freezeSubscription(id: string, dto: FreezeSubscriptionDto): Promise<{
         id: string;
-        isActive: boolean;
         createdAt: Date;
+        isActive: boolean;
         userId: string;
         planId: string;
         startDate: Date;
@@ -224,7 +224,6 @@ export declare class AdminController {
     grantSubscription(id: string, dto: GrantSubscriptionDto): Promise<({
         plan: {
             id: string;
-            isActive: boolean;
             createdAt: Date;
             type: import(".prisma/client").$Enums.PlanType;
             nameAr: string;
@@ -232,6 +231,7 @@ export declare class AdminController {
             discountPercent: number;
             priceIls: number;
             videosPerSubject: number;
+            isActive: boolean;
         };
         subjects: ({
             subject: {
@@ -251,8 +251,8 @@ export declare class AdminController {
         })[];
     } & {
         id: string;
-        isActive: boolean;
         createdAt: Date;
+        isActive: boolean;
         userId: string;
         planId: string;
         startDate: Date;
@@ -491,7 +491,6 @@ export declare class AdminController {
     }>;
     listPlans(): Promise<{
         id: string;
-        isActive: boolean;
         createdAt: Date;
         type: import(".prisma/client").$Enums.PlanType;
         nameAr: string;
@@ -499,10 +498,10 @@ export declare class AdminController {
         discountPercent: number;
         priceIls: number;
         videosPerSubject: number;
+        isActive: boolean;
     }[]>;
     updatePlan(id: string, dto: UpdatePlanDto): Promise<{
         id: string;
-        isActive: boolean;
         createdAt: Date;
         type: import(".prisma/client").$Enums.PlanType;
         nameAr: string;
@@ -510,6 +509,7 @@ export declare class AdminController {
         discountPercent: number;
         priceIls: number;
         videosPerSubject: number;
+        isActive: boolean;
     }>;
     listTeachers(query: {
         search?: string;

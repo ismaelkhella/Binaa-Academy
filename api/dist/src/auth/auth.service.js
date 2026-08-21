@@ -41,6 +41,7 @@ var __importStar = (this && this.__importStar) || (function () {
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var AuthService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthService = void 0;
 const common_1 = require("@nestjs/common");
@@ -50,11 +51,44 @@ const bcrypt = __importStar(require("bcrypt"));
 const prisma_service_1 = require("../prisma/prisma.service");
 const client_1 = require("@prisma/client");
 const crypto = __importStar(require("crypto"));
-let AuthService = class AuthService {
+let AuthService = AuthService_1 = class AuthService {
     constructor(prisma, jwt, config) {
         this.prisma = prisma;
         this.jwt = jwt;
         this.config = config;
+        this.logger = new common_1.Logger(AuthService_1.name);
+    }
+    async onModuleInit() {
+        try {
+            const adminCount = await this.prisma.adminUser.count();
+            if (adminCount === 0) {
+                const defaultAdminPassword = await bcrypt.hash('admin123', 10);
+                await this.prisma.adminUser.create({
+                    data: {
+                        email: 'admin@bina.ps',
+                        passwordHash: defaultAdminPassword,
+                        name: 'مدير النظام',
+                    },
+                });
+                this.logger.log('Default admin user created: admin@bina.ps / admin123');
+            }
+            const planCount = await this.prisma.subscriptionPlan.count();
+            if (planCount === 0) {
+                const plans = [
+                    { type: client_1.PlanType.TRIAL, nameAr: 'تجربة مجانية', durationDays: 365, priceIls: 0, videosPerSubject: 2 },
+                    { type: client_1.PlanType.MONTHLY, nameAr: 'اشتراك شهري', durationDays: 30, priceIls: 49, videosPerSubject: 15 },
+                    { type: client_1.PlanType.QUARTERLY, nameAr: 'اشتراك فصلي', durationDays: 90, discountPercent: 10, priceIls: 132, videosPerSubject: 20 },
+                    { type: client_1.PlanType.YEARLY, nameAr: 'اشتراك سنوي', durationDays: 365, discountPercent: 10, priceIls: 529, videosPerSubject: 999 },
+                ];
+                for (const plan of plans) {
+                    await this.prisma.subscriptionPlan.create({ data: plan });
+                }
+                this.logger.log('Default subscription plans seeded.');
+            }
+        }
+        catch (err) {
+            this.logger.warn(`Could not bootstrap initial seed data: ${err?.message}`);
+        }
     }
     async register(dto) {
         const existing = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
@@ -224,7 +258,7 @@ let AuthService = class AuthService {
     }
 };
 exports.AuthService = AuthService;
-exports.AuthService = AuthService = __decorate([
+exports.AuthService = AuthService = AuthService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         jwt_1.JwtService,

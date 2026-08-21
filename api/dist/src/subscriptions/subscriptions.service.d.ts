@@ -4,7 +4,6 @@ export declare class SubscriptionsService {
     constructor(prisma: PrismaService);
     listPlans(): Promise<{
         id: string;
-        isActive: boolean;
         createdAt: Date;
         type: import(".prisma/client").$Enums.PlanType;
         nameAr: string;
@@ -12,11 +11,11 @@ export declare class SubscriptionsService {
         discountPercent: number;
         priceIls: number;
         videosPerSubject: number;
+        isActive: boolean;
     }[]>;
     getActiveSubscription(userId: string): Promise<({
         plan: {
             id: string;
-            isActive: boolean;
             createdAt: Date;
             type: import(".prisma/client").$Enums.PlanType;
             nameAr: string;
@@ -24,11 +23,12 @@ export declare class SubscriptionsService {
             discountPercent: number;
             priceIls: number;
             videosPerSubject: number;
+            isActive: boolean;
         };
     } & {
         id: string;
-        isActive: boolean;
         createdAt: Date;
+        isActive: boolean;
         userId: string;
         planId: string;
         startDate: Date;
