@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.QuestionBankModule = void 0;
 const common_1 = require("@nestjs/common");
 const question_bank_controller_1 = require("./question-bank.controller");
+const qb_student_controller_1 = require("./qb-student.controller");
 const question_bank_service_1 = require("./question-bank.service");
 const auth_module_1 = require("../auth/auth.module");
 const prisma_module_1 = require("../prisma/prisma.module");
@@ -18,7 +19,7 @@ exports.QuestionBankModule = QuestionBankModule;
 exports.QuestionBankModule = QuestionBankModule = __decorate([
     (0, common_1.Module)({
         imports: [auth_module_1.AuthModule, prisma_module_1.PrismaModule],
-        controllers: [question_bank_controller_1.QuestionBankController],
+        controllers: [question_bank_controller_1.QuestionBankController, qb_student_controller_1.QbStudentController],
         providers: [question_bank_service_1.QuestionBankService],
     })
 ], QuestionBankModule);

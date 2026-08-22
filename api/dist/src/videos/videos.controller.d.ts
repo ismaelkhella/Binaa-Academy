@@ -20,6 +20,12 @@ export declare class VideosController {
             dailyQuizId: string | null;
             mux_playback_id: string;
             video_status: string;
+            questions: {
+                id: string;
+                text: string;
+                options: any;
+                answer: string;
+            }[];
         };
         chapters: {
             id: string;

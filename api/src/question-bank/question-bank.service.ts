@@ -1,11 +1,132 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStageDto, CreateQbSubjectDto, CreateUnitDto, CreateQuestionDto } from './dto/question-bank.dto';
-import { Grade, Branch } from '@prisma/client';
+import { Grade, Branch, PlanType } from '@prisma/client';
+
+// Kept in sync with the trial-unlocked subject list in videos.service.ts.
+const TRIAL_UNLOCKED_SUBJECTS = [
+  'اللغة العربية',
+  'اللغة الإنجليزية',
+  'الفيزياء',
+  'الأحياء',
+  'التكنولوجيا',
+];
 
 @Injectable()
 export class QuestionBankService {
   constructor(private prisma: PrismaService) {}
+
+  // ─── STUDENT-FACING (subscription-gated) ───────────────────────────────────
+
+  /** Subject ids the student currently has access to: fully via a paid
+   * subscription, or via an active trial for the trial-unlocked subjects. */
+  private async accessibleSubjectIds(userId: string): Promise<Set<string>> {
+    const subs = await this.prisma.subscription.findMany({
+      where: { userId, isActive: true, isFrozen: false, endDate: { gt: new Date() } },
+      include: { plan: true, subjects: true },
+    });
+
+    const ids = new Set<string>();
+    const hasTrial = subs.some((s) => s.plan.type === PlanType.TRIAL);
+
+    for (const sub of subs) {
+      if (sub.plan.type !== PlanType.TRIAL) {
+        for (const ss of sub.subjects) ids.add(ss.subjectId);
+      }
+    }
+
+    if (hasTrial) {
+      const trialSubjects = await this.prisma.subject.findMany({
+        where: { name: { in: TRIAL_UNLOCKED_SUBJECTS } },
+        select: { id: true },
+      });
+      for (const s of trialSubjects) ids.add(s.id);
+    }
+
+    return ids;
+  }
+
+  private async ensureStudentSubjectAccess(userId: string, subjectId: string) {
+    const ids = await this.accessibleSubjectIds(userId);
+    if (!ids.has(subjectId)) {
+      throw new ForbiddenException('يجب الاشتراك في هذه المادة للوصول إلى بنك الأسئلة الخاص بها');
+    }
+  }
+
+  async getStudentSubjects(userId: string) {
+    const subjectIds = await this.accessibleSubjectIds(userId);
+    if (subjectIds.size === 0) return [];
+
+    const subjects = await this.prisma.subject.findMany({
+      where: { id: { in: Array.from(subjectIds) } },
+      include: { _count: { select: { units: true } } },
+      orderBy: { name: 'asc' },
+    });
+
+    return subjects
+      .filter((s) => s._count.units > 0)
+      .map((s) => ({ id: s.id, name: s.name, unitsCount: s._count.units }));
+  }
+
+  async getStudentUnits(subjectId: string, userId: string) {
+    await this.ensureStudentSubjectAccess(userId, subjectId);
+
+    const units = await this.prisma.unit.findMany({
+      where: { subjectId },
+      include: { _count: { select: { questions: true } } },
+      orderBy: { order: 'asc' },
+    });
+
+    return units.map((u) => ({
+      id: u.id,
+      name: u.name,
+      order: u.order,
+      questionsCount: u._count.questions,
+    }));
+  }
+
+  async getStudentQuestions(unitId: string, userId: string) {
+    const unit = await this.prisma.unit.findUnique({ where: { id: unitId } });
+    if (!unit) throw new NotFoundException('الوحدة غير موجودة');
+
+    await this.ensureStudentSubjectAccess(userId, unit.subjectId);
+
+    const questions = await this.prisma.question.findMany({
+      where: { unitId },
+      include: { choices: { select: { id: true, text: true } } },
+      orderBy: { order: 'asc' },
+    });
+
+    return questions.map((q) => ({
+      id: q.id,
+      text: q.text,
+      imageUrl: q.imageUrl,
+      order: q.order,
+      choices: q.choices,
+    }));
+  }
+
+  async answerQuestion(questionId: string, choiceId: string, userId: string) {
+    const question = await this.prisma.question.findUnique({
+      where: { id: questionId },
+      include: { choices: true, unit: true },
+    });
+    if (!question) throw new NotFoundException('السؤال غير موجود');
+
+    await this.ensureStudentSubjectAccess(userId, question.unit.subjectId);
+
+    const chosen = question.choices.find((c) => c.id === choiceId);
+    if (!chosen) throw new NotFoundException('الخيار غير موجود');
+
+    const correct = question.choices.find((c) => c.isCorrect);
+
+    return {
+      isCorrect: chosen.isCorrect,
+      correctChoiceId: correct?.id ?? '',
+    };
+  }
+
+  // ─── ADMIN CRUD ─────────────────────────────────────────────────────────────
 
   // ─── IMPORT FROM SUBJECTS (CONTENT/LESSONS) ────────────────────────────────
   /**

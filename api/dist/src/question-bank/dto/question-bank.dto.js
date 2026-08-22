@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CreateQuestionDto = exports.CreateChoiceDto = exports.CreateUnitDto = exports.CreateQbSubjectDto = exports.CreateStageDto = void 0;
+exports.AnswerQuestionDto = exports.CreateQuestionDto = exports.CreateChoiceDto = exports.CreateUnitDto = exports.CreateQbSubjectDto = exports.CreateStageDto = void 0;
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
 class CreateStageDto {
@@ -87,4 +87,11 @@ __decorate([
     (0, class_transformer_1.Type)(() => CreateChoiceDto),
     __metadata("design:type", Array)
 ], CreateQuestionDto.prototype, "choices", void 0);
+class AnswerQuestionDto {
+}
+exports.AnswerQuestionDto = AnswerQuestionDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], AnswerQuestionDto.prototype, "choiceId", void 0);
 //# sourceMappingURL=question-bank.dto.js.map

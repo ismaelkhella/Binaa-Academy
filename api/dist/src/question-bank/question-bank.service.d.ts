@@ -3,6 +3,33 @@ import { CreateStageDto, CreateQbSubjectDto, CreateUnitDto, CreateQuestionDto } 
 export declare class QuestionBankService {
     private prisma;
     constructor(prisma: PrismaService);
+    private accessibleSubjectIds;
+    private ensureStudentSubjectAccess;
+    getStudentSubjects(userId: string): Promise<{
+        id: string;
+        name: string;
+        unitsCount: number;
+    }[]>;
+    getStudentUnits(subjectId: string, userId: string): Promise<{
+        id: string;
+        name: string;
+        order: number;
+        questionsCount: number;
+    }[]>;
+    getStudentQuestions(unitId: string, userId: string): Promise<{
+        id: string;
+        text: string;
+        imageUrl: string | null;
+        order: number;
+        choices: {
+            id: string;
+            text: string;
+        }[];
+    }[]>;
+    answerQuestion(questionId: string, choiceId: string, userId: string): Promise<{
+        isCorrect: boolean;
+        correctChoiceId: string;
+    }>;
     importFromSubjects(): Promise<{
         message: string;
         createdStages: string[];

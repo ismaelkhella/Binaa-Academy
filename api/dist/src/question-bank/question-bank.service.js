@@ -12,9 +12,108 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.QuestionBankService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+const client_1 = require("@prisma/client");
+const TRIAL_UNLOCKED_SUBJECTS = [
+    'اللغة العربية',
+    'اللغة الإنجليزية',
+    'الفيزياء',
+    'الأحياء',
+    'التكنولوجيا',
+];
 let QuestionBankService = class QuestionBankService {
     constructor(prisma) {
         this.prisma = prisma;
+    }
+    async accessibleSubjectIds(userId) {
+        const subs = await this.prisma.subscription.findMany({
+            where: { userId, isActive: true, isFrozen: false, endDate: { gt: new Date() } },
+            include: { plan: true, subjects: true },
+        });
+        const ids = new Set();
+        const hasTrial = subs.some((s) => s.plan.type === client_1.PlanType.TRIAL);
+        for (const sub of subs) {
+            if (sub.plan.type !== client_1.PlanType.TRIAL) {
+                for (const ss of sub.subjects)
+                    ids.add(ss.subjectId);
+            }
+        }
+        if (hasTrial) {
+            const trialSubjects = await this.prisma.subject.findMany({
+                where: { name: { in: TRIAL_UNLOCKED_SUBJECTS } },
+                select: { id: true },
+            });
+            for (const s of trialSubjects)
+                ids.add(s.id);
+        }
+        return ids;
+    }
+    async ensureStudentSubjectAccess(userId, subjectId) {
+        const ids = await this.accessibleSubjectIds(userId);
+        if (!ids.has(subjectId)) {
+            throw new common_1.ForbiddenException('يجب الاشتراك في هذه المادة للوصول إلى بنك الأسئلة الخاص بها');
+        }
+    }
+    async getStudentSubjects(userId) {
+        const subjectIds = await this.accessibleSubjectIds(userId);
+        if (subjectIds.size === 0)
+            return [];
+        const subjects = await this.prisma.subject.findMany({
+            where: { id: { in: Array.from(subjectIds) } },
+            include: { _count: { select: { units: true } } },
+            orderBy: { name: 'asc' },
+        });
+        return subjects
+            .filter((s) => s._count.units > 0)
+            .map((s) => ({ id: s.id, name: s.name, unitsCount: s._count.units }));
+    }
+    async getStudentUnits(subjectId, userId) {
+        await this.ensureStudentSubjectAccess(userId, subjectId);
+        const units = await this.prisma.unit.findMany({
+            where: { subjectId },
+            include: { _count: { select: { questions: true } } },
+            orderBy: { order: 'asc' },
+        });
+        return units.map((u) => ({
+            id: u.id,
+            name: u.name,
+            order: u.order,
+            questionsCount: u._count.questions,
+        }));
+    }
+    async getStudentQuestions(unitId, userId) {
+        const unit = await this.prisma.unit.findUnique({ where: { id: unitId } });
+        if (!unit)
+            throw new common_1.NotFoundException('الوحدة غير موجودة');
+        await this.ensureStudentSubjectAccess(userId, unit.subjectId);
+        const questions = await this.prisma.question.findMany({
+            where: { unitId },
+            include: { choices: { select: { id: true, text: true } } },
+            orderBy: { order: 'asc' },
+        });
+        return questions.map((q) => ({
+            id: q.id,
+            text: q.text,
+            imageUrl: q.imageUrl,
+            order: q.order,
+            choices: q.choices,
+        }));
+    }
+    async answerQuestion(questionId, choiceId, userId) {
+        const question = await this.prisma.question.findUnique({
+            where: { id: questionId },
+            include: { choices: true, unit: true },
+        });
+        if (!question)
+            throw new common_1.NotFoundException('السؤال غير موجود');
+        await this.ensureStudentSubjectAccess(userId, question.unit.subjectId);
+        const chosen = question.choices.find((c) => c.id === choiceId);
+        if (!chosen)
+            throw new common_1.NotFoundException('الخيار غير موجود');
+        const correct = question.choices.find((c) => c.isCorrect);
+        return {
+            isCorrect: chosen.isCorrect,
+            correctChoiceId: correct?.id ?? '',
+        };
     }
     async importFromSubjects() {
         const GRADE_LABEL = {

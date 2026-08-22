@@ -5,6 +5,7 @@ export declare class VideosService {
     private muxService;
     private readonly logger;
     constructor(prisma: PrismaService, muxService: MuxService);
+    private mapQuestions;
     getLessonDetails(videoId: string, userId: string): Promise<{
         video: {
             id: string;
@@ -19,6 +20,12 @@ export declare class VideosService {
             dailyQuizId: string | null;
             mux_playback_id: string;
             video_status: string;
+            questions: {
+                id: string;
+                text: string;
+                options: any;
+                answer: string;
+            }[];
         };
         chapters: {
             id: string;

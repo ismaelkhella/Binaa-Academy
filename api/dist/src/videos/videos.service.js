@@ -26,6 +26,23 @@ let VideosService = VideosService_1 = class VideosService {
         this.muxService = muxService;
         this.logger = new common_1.Logger(VideosService_1.name);
     }
+    mapQuestions(questions) {
+        return questions.map((q) => {
+            let parsedOptions = [];
+            try {
+                parsedOptions = JSON.parse(q.options);
+            }
+            catch (e) {
+                parsedOptions = q.options.split(',');
+            }
+            return {
+                id: q.id,
+                text: q.text,
+                options: parsedOptions,
+                answer: q.answer,
+            };
+        });
+    }
     async getLessonDetails(videoId, userId) {
         const video = await this.prisma.video.findUnique({
             where: { id: videoId },
@@ -35,6 +52,7 @@ let VideosService = VideosService_1 = class VideosService {
                 chapters: {
                     orderBy: { order: 'asc' },
                 },
+                questions: true,
             },
         });
         if (!video || video.status !== 'PUBLISHED') {
@@ -117,6 +135,7 @@ let VideosService = VideosService_1 = class VideosService {
                 dailyQuizId: quiz?.id ?? null,
                 mux_playback_id: video.muxPlaybackId ?? '',
                 video_status: video.videoStatus === 'ready' ? 'ready' : 'processing',
+                questions: this.mapQuestions(video.questions),
             },
             chapters,
             relatedVideos,
@@ -182,21 +201,7 @@ let VideosService = VideosService_1 = class VideosService {
         let triggerQuiz = null;
         if (completedViews.length % 2 === 0 && completedViews.length > 0) {
             const lastTwoViews = completedViews.slice(-2);
-            const quizQuestions = lastTwoViews.flatMap((cv) => cv.video.questions.map((q) => {
-                let parsedOptions = [];
-                try {
-                    parsedOptions = JSON.parse(q.options);
-                }
-                catch (e) {
-                    parsedOptions = q.options.split(',');
-                }
-                return {
-                    id: q.id,
-                    text: q.text,
-                    options: parsedOptions,
-                    answer: q.answer,
-                };
-            }));
+            const quizQuestions = lastTwoViews.flatMap((cv) => this.mapQuestions(cv.video.questions));
             if (quizQuestions.length > 0) {
                 triggerQuiz = {
                     title: `اختبار قصير: ${video.subject.name}`,

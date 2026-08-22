@@ -58,3 +58,8 @@ export class CreateQuestionDto {
   @Type(() => CreateChoiceDto)
   choices!: CreateChoiceDto[];
 }
+
+export class AnswerQuestionDto {
+  @IsString()
+  choiceId!: string;
+}

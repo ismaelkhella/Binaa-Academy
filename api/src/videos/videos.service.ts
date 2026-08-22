@@ -18,6 +18,23 @@ export class VideosService {
     private muxService: MuxService,
   ) { }
 
+  private mapQuestions(questions: { id: string; text: string; options: string; answer: string }[]) {
+    return questions.map((q) => {
+      let parsedOptions = [];
+      try {
+        parsedOptions = JSON.parse(q.options);
+      } catch (e) {
+        parsedOptions = q.options.split(',');
+      }
+      return {
+        id: q.id,
+        text: q.text,
+        options: parsedOptions,
+        answer: q.answer,
+      };
+    });
+  }
+
   async getLessonDetails(videoId: string, userId: string) {
     const video = await this.prisma.video.findUnique({
       where: { id: videoId },
@@ -27,6 +44,7 @@ export class VideosService {
         chapters: {
           orderBy: { order: 'asc' },
         },
+        questions: true,
       },
     });
 
@@ -122,6 +140,7 @@ export class VideosService {
         dailyQuizId: quiz?.id ?? null,
         mux_playback_id: video.muxPlaybackId ?? '',
         video_status: video.videoStatus === 'ready' ? 'ready' : 'processing',
+        questions: this.mapQuestions(video.questions),
       },
       chapters,
       relatedVideos,
@@ -202,21 +221,8 @@ export class VideosService {
       const lastTwoViews = completedViews.slice(-2);
       
       // Get questions for these two videos
-      const quizQuestions = lastTwoViews.flatMap((cv) => 
-        cv.video.questions.map((q) => {
-          let parsedOptions = [];
-          try {
-            parsedOptions = JSON.parse(q.options);
-          } catch (e) {
-            parsedOptions = q.options.split(',');
-          }
-          return {
-            id: q.id,
-            text: q.text,
-            options: parsedOptions,
-            answer: q.answer,
-          };
-        })
+      const quizQuestions = lastTwoViews.flatMap((cv) =>
+        this.mapQuestions(cv.video.questions),
       );
 
       if (quizQuestions.length > 0) {

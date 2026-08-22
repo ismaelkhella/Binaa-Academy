@@ -20,3 +20,6 @@ export declare class CreateQuestionDto {
     order?: number;
     choices: CreateChoiceDto[];
 }
+export declare class AnswerQuestionDto {
+    choiceId: string;
+}
