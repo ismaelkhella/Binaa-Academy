@@ -234,11 +234,34 @@ export class VideosService {
       }
     }
 
-    return { 
-      viewCount: view.viewCount, 
+    return {
+      viewCount: view.viewCount,
       maxViews: video.maxViews,
       triggerQuiz,
     };
+  }
+
+  /** Best-effort playback position sync, used to power "Continue Learning"
+   * on the dashboard. Does not touch viewCount/completed — those remain
+   * markViewed's responsibility. */
+  async updatePosition(videoId: string, userId: string, positionSec: number) {
+    const video = await this.prisma.video.findUnique({
+      where: { id: videoId },
+      select: { durationSec: true },
+    });
+    if (!video) throw new NotFoundException('الفيديو غير موجود');
+
+    const clamped = video.durationSec > 0
+      ? Math.min(positionSec, video.durationSec)
+      : positionSec;
+
+    await this.prisma.videoView.upsert({
+      where: { userId_videoId: { userId, videoId } },
+      create: { userId, videoId, positionSec: clamped },
+      update: { positionSec: clamped, lastViewed: new Date() },
+    });
+
+    return { success: true };
   }
 
   async getDownloadDetails(videoId: string, userId: string) {

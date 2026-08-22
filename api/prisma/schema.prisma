@@ -179,6 +179,7 @@ model VideoView {
   videoId     String   @map("video_id")
   viewCount   Int      @default(0) @map("view_count")
   completed   Boolean  @default(false)
+  positionSec Int      @default(0) @map("position_sec")
   lastViewed  DateTime @default(now()) @map("last_viewed")
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)

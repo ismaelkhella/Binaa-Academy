@@ -1,4 +1,5 @@
 import { VideosService } from './videos.service';
+import { UpdatePositionDto } from './dto/update-position.dto';
 export declare class VideosController {
     private videosService;
     constructor(videosService: VideosService);
@@ -78,6 +79,13 @@ export declare class VideosController {
                 answer: string;
             }[];
         } | null;
+    }>;
+    updatePosition(id: string, dto: UpdatePositionDto, req: {
+        user: {
+            sub: string;
+        };
+    }): Promise<{
+        success: boolean;
     }>;
     getDownloadToken(id: string, req: {
         user: {

@@ -55,11 +55,13 @@ export class DashboardService {
     }
 
     // 3. Continue Learning ("متابعة التعلم")
-    // Find the latest partially-watched video view for this student
-    const latestPartialView = await this.prisma.videoView.findFirst({
+    // Find the most recently watched video that actually has tracked
+    // playback progress (positionSec is synced periodically while a
+    // student watches — see VideosService.updatePosition).
+    const latestPositionView = await this.prisma.videoView.findFirst({
       where: {
         userId,
-        completed: false,
+        positionSec: { gt: 0 },
       },
       include: {
         video: {
@@ -74,8 +76,12 @@ export class DashboardService {
     });
 
     let continueLearning = null;
-    if (latestPartialView?.video) {
-      const video = latestPartialView.video;
+    if (latestPositionView?.video) {
+      const video = latestPositionView.video;
+      const durationSec = video.durationSec > 0 ? video.durationSec : latestPositionView.positionSec;
+      const progressPercent = Math.min(100, Math.round((latestPositionView.positionSec / durationSec) * 100));
+      const timeLeftMin = Math.max(0, Math.round((durationSec - latestPositionView.positionSec) / 60));
+
       continueLearning = {
         videoId: video.id,
         videoTitle: video.title,
@@ -83,20 +89,8 @@ export class DashboardService {
         unitName: `${video.subject.name} - الوحدة الأولى`,
         lessonText: video.title,
         durationSec: video.durationSec,
-        timeLeftMin: 12, // mock time left
-        progressPercent: 45, // mock progress
-      };
-    } else {
-      // Fallback/Default if no watch history exists
-      continueLearning = {
-        videoId: 'default-video',
-        videoTitle: 'الدرس الثالث: قوانين نيوتن للحركة',
-        subjectName: 'الفيزياء',
-        unitName: 'الفيزياء - الوحدة الأولى',
-        lessonText: 'الدرس الثالث: قوانين نيوتن للحركة',
-        durationSec: 3300,
-        timeLeftMin: 12,
-        progressPercent: 45,
+        timeLeftMin,
+        progressPercent,
       };
     }
 

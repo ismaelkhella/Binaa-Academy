@@ -141,6 +141,7 @@ export declare class AdminService {
             completed: boolean;
             videoId: string;
             viewCount: number;
+            positionSec: number;
             lastViewed: Date;
         })[];
         dailyGoals: {

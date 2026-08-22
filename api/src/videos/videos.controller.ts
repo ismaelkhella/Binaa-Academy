@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, UseGuards, Req } from '@nestjs/common';
 import { VideosService } from './videos.service';
 import { StudentJwtGuard } from '../auth/guards/jwt.guard';
+import { UpdatePositionDto } from './dto/update-position.dto';
 
 @Controller('videos')
 export class VideosController {
@@ -22,6 +23,16 @@ export class VideosController {
   @UseGuards(StudentJwtGuard)
   markViewed(@Param('id') id: string, @Req() req: { user: { sub: string } }) {
     return this.videosService.markViewed(id, req.user.sub);
+  }
+
+  @Post(':id/position')
+  @UseGuards(StudentJwtGuard)
+  updatePosition(
+    @Param('id') id: string,
+    @Body() dto: UpdatePositionDto,
+    @Req() req: { user: { sub: string } },
+  ) {
+    return this.videosService.updatePosition(id, req.user.sub, dto.positionSec);
   }
 
   @Get(':id/download-token')

@@ -71,6 +71,9 @@ export declare class VideosService {
             }[];
         } | null;
     }>;
+    updatePosition(videoId: string, userId: string, positionSec: number): Promise<{
+        success: boolean;
+    }>;
     getDownloadDetails(videoId: string, userId: string): Promise<{
         playbackId: string | null;
         streamingUrl: string | null;

@@ -14,7 +14,7 @@ export declare class DashboardService {
             durationSec: number;
             timeLeftMin: number;
             progressPercent: number;
-        };
+        } | null;
         todayGoals: {
             completedCount: number;
             totalCount: number;

@@ -16,6 +16,7 @@ exports.VideosController = void 0;
 const common_1 = require("@nestjs/common");
 const videos_service_1 = require("./videos.service");
 const jwt_guard_1 = require("../auth/guards/jwt.guard");
+const update_position_dto_1 = require("./dto/update-position.dto");
 let VideosController = class VideosController {
     constructor(videosService) {
         this.videosService = videosService;
@@ -28,6 +29,9 @@ let VideosController = class VideosController {
     }
     markViewed(id, req) {
         return this.videosService.markViewed(id, req.user.sub);
+    }
+    updatePosition(id, dto, req) {
+        return this.videosService.updatePosition(id, req.user.sub, dto.positionSec);
     }
     getDownloadToken(id, req) {
         return this.videosService.getDownloadToken(id, req.user.sub);
@@ -64,6 +68,16 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], VideosController.prototype, "markViewed", null);
+__decorate([
+    (0, common_1.Post)(':id/position'),
+    (0, common_1.UseGuards)(jwt_guard_1.StudentJwtGuard),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, update_position_dto_1.UpdatePositionDto, Object]),
+    __metadata("design:returntype", void 0)
+], VideosController.prototype, "updatePosition", null);
 __decorate([
     (0, common_1.Get)(':id/download-token'),
     (0, common_1.UseGuards)(jwt_guard_1.StudentJwtGuard),

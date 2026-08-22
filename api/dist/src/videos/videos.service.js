@@ -216,6 +216,23 @@ let VideosService = VideosService_1 = class VideosService {
             triggerQuiz,
         };
     }
+    async updatePosition(videoId, userId, positionSec) {
+        const video = await this.prisma.video.findUnique({
+            where: { id: videoId },
+            select: { durationSec: true },
+        });
+        if (!video)
+            throw new common_1.NotFoundException('الفيديو غير موجود');
+        const clamped = video.durationSec > 0
+            ? Math.min(positionSec, video.durationSec)
+            : positionSec;
+        await this.prisma.videoView.upsert({
+            where: { userId_videoId: { userId, videoId } },
+            create: { userId, videoId, positionSec: clamped },
+            update: { positionSec: clamped, lastViewed: new Date() },
+        });
+        return { success: true };
+    }
     async getDownloadDetails(videoId, userId) {
         const video = await this.prisma.video.findUnique({ where: { id: videoId } });
         if (!video)

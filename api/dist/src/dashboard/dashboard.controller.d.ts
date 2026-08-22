@@ -18,7 +18,7 @@ export declare class DashboardController {
             durationSec: number;
             timeLeftMin: number;
             progressPercent: number;
-        };
+        } | null;
         todayGoals: {
             completedCount: number;
             totalCount: number;

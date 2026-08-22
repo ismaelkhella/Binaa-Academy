@@ -140,6 +140,7 @@ export declare class AdminController {
             completed: boolean;
             videoId: string;
             viewCount: number;
+            positionSec: number;
             lastViewed: Date;
         })[];
         dailyGoals: {

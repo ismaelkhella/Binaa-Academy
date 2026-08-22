@@ -53,10 +53,10 @@ let DashboardService = class DashboardService {
             }
             generalProgress = subjectsWithVideos > 0 ? Math.round(totalSubjectProgress / subjectsWithVideos) : 0;
         }
-        const latestPartialView = await this.prisma.videoView.findFirst({
+        const latestPositionView = await this.prisma.videoView.findFirst({
             where: {
                 userId,
-                completed: false,
+                positionSec: { gt: 0 },
             },
             include: {
                 video: {
@@ -70,8 +70,11 @@ let DashboardService = class DashboardService {
             },
         });
         let continueLearning = null;
-        if (latestPartialView?.video) {
-            const video = latestPartialView.video;
+        if (latestPositionView?.video) {
+            const video = latestPositionView.video;
+            const durationSec = video.durationSec > 0 ? video.durationSec : latestPositionView.positionSec;
+            const progressPercent = Math.min(100, Math.round((latestPositionView.positionSec / durationSec) * 100));
+            const timeLeftMin = Math.max(0, Math.round((durationSec - latestPositionView.positionSec) / 60));
             continueLearning = {
                 videoId: video.id,
                 videoTitle: video.title,
@@ -79,20 +82,8 @@ let DashboardService = class DashboardService {
                 unitName: `${video.subject.name} - الوحدة الأولى`,
                 lessonText: video.title,
                 durationSec: video.durationSec,
-                timeLeftMin: 12,
-                progressPercent: 45,
-            };
-        }
-        else {
-            continueLearning = {
-                videoId: 'default-video',
-                videoTitle: 'الدرس الثالث: قوانين نيوتن للحركة',
-                subjectName: 'الفيزياء',
-                unitName: 'الفيزياء - الوحدة الأولى',
-                lessonText: 'الدرس الثالث: قوانين نيوتن للحركة',
-                durationSec: 3300,
-                timeLeftMin: 12,
-                progressPercent: 45,
+                timeLeftMin,
+                progressPercent,
             };
         }
         const startOfToday = new Date();
